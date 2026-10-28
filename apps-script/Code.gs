@@ -34,8 +34,9 @@ var TABLES = {
   },
   car_documents: {
     sheet: 'Documents',
-    cols: ['id', 'car_id', 'car_plate', 'doc_type', 'doc_number', 'issue_date', 'expiry_date', 'notes', 'created_at'],
-    num: [],
+    cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'doc_type', 'doc_number', 'issue_date', 'expiry_date', 'notes',
+      'file_id', 'file_name', 'file_type', 'file_size', 'created_at'],
+    num: ['file_size'],
   },
   assignments: {
     sheet: 'Assignments',
@@ -63,7 +64,8 @@ var TABLES = {
 };
 
 var HIDDEN_USER_FIELDS = ['password_hash', 'salt', 'set_password'];
-var READ_ONLY = ['id', 'created_at', 'car_plate', 'driver_name', 'created_by'];
+var READ_ONLY = ['id', 'created_at', 'car_plate', 'driver_name', 'created_by', 'file_id', 'file_name', 'file_type', 'file_size'];
+var MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 var ENUMS = {
   cars: { status: ['active', 'maintenance', 'inactive', 'sold'] },
@@ -78,7 +80,7 @@ var ENUMS = {
 
 var REQUIRED = {
   cars: ['plate_no', 'status'],
-  car_documents: ['car_id', 'doc_type', 'expiry_date'],
+  car_documents: ['doc_type'],
   assignments: ['car_id', 'driver_id', 'start_date'],
   incomes: ['car_id', 'amount', 'income_date', 'payment_status'],
   expenses: ['car_id', 'category', 'amount', 'expense_date', 'paid_by', 'status'],
@@ -131,6 +133,12 @@ function route_(b) {
       return withLock_(function () { return remove_(me, b.table, b.id); });
     case 'saveUser':
       return withLock_(function () { return saveUser_(me, b.user || {}); });
+    case 'uploadFile':
+      return withLock_(function () { return uploadFile_(me, b.id, b.name, b.mimeType, b.base64); });
+    case 'getFile':
+      return getFile_(me, b.id);
+    case 'removeFile':
+      return withLock_(function () { return removeFile_(me, b.id); });
     case 'changePassword':
       return withLock_(function () { return changePassword_(me, b.oldPassword, b.newPassword); });
     default:
@@ -144,6 +152,7 @@ function route_(b) {
 function setup() {
   Object.keys(TABLES).forEach(function (t) { sheet_(t); });
   secret_();
+  filesFolder_();
   var users = readTable_('users');
   var owner = Session.getEffectiveUser().getEmail();
   var msg = 'Sheets ready.\n';
@@ -368,7 +377,7 @@ function loadData_(me) {
     me: publicUser_(me),
     cars: cars.filter(function (c) { return everCar[c.id]; }),
     profiles: [publicUser_(me)],
-    docs: docs.filter(function (d) { return nowCar[d.car_id]; }),
+    docs: docs.filter(function (d) { return nowCar[d.car_id] || d.driver_id === me.id; }),
     assignments: mine,
     incomes: [],
     expenses: expenses.filter(function (x) { return x.driver_id === me.id; }),
@@ -407,6 +416,7 @@ function clean_(table, row) {
 }
 
 function checkRequired_(table, row) {
+  if (table === 'car_documents' && !row.car_id && !row.driver_id) throw new Error('Choose a car or a driver for this document');
   (REQUIRED[table] || []).forEach(function (c) {
     if (row[c] === null || row[c] === undefined || row[c] === '') throw new Error(c.replace(/_/g, ' ') + ' is required');
   });
@@ -510,10 +520,12 @@ function remove_(me, table, id) {
   if (table === 'cars') {
     var money = readTable_('incomes').concat(readTable_('expenses')).some(function (r) { return r.car_id === id; });
     if (money) throw new Error('This car has income/expense records. Set its status to "inactive" or "sold" instead of deleting.');
+    readTable_('car_documents').forEach(function (d) { if (d.car_id === id) trashFile_(d.file_id); });
     deleteWhere_('car_documents', 'car_id', id);
     deleteWhere_('assignments', 'car_id', id);
     deleteWhere_('daily_logs', 'car_id', id);
   }
+  if (table === 'car_documents') trashFile_(row.file_id);
   deleteRow_(table, id);
   return { id: id };
 }
@@ -583,6 +595,75 @@ function changePassword_(me, oldPw, newPw) {
   var salt = Utilities.getUuid();
   updateRow_('users', me.id, merge_(me, { salt: salt, password_hash: hash_(String(newPw), salt) }));
   return { ok: true };
+}
+
+// ---------------------------------------------------------------- files (Google Drive)
+
+/** "MAC CAR Files" folder in the admin's Google Drive. */
+function filesFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('FILES_FOLDER_ID');
+  if (id) {
+    try {
+      var f = DriveApp.getFolderById(id);
+      if (!f.isTrashed()) return f;
+    } catch (e) {
+      // folder deleted — make a new one
+    }
+  }
+  var folder = DriveApp.createFolder('MAC CAR Files');
+  props.setProperty('FILES_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function trashFile_(fileId) {
+  if (!fileId) return;
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+  } catch (e) {
+    // already gone
+  }
+}
+
+function canSeeDoc_(me, doc) {
+  if (isAdmin_(me)) return true;
+  return doc.driver_id === me.id || (doc.car_id && drivesNow_(me, doc.car_id));
+}
+
+function uploadFile_(me, docId, name, mimeType, base64) {
+  requireAdmin_(me);
+  var doc = findBy_('car_documents', 'id', docId);
+  if (!doc) throw new Error('Document not found');
+  if (!base64) throw new Error('No file received');
+  var bytes = Utilities.base64Decode(String(base64).replace(/^data:[^,]*,/, ''));
+  if (bytes.length > MAX_FILE_BYTES) throw new Error('File is too big (max 10 MB)');
+  var label = [doc.car_plate || doc.driver_name || '', doc.doc_type].filter(String).join(' - ');
+  var cleanName = String(name || 'document').replace(/[\\/:*?"<>|]+/g, '_');
+  var blob = Utilities.newBlob(bytes, mimeType || 'application/octet-stream', label ? label + ' - ' + cleanName : cleanName);
+  var file = filesFolder_().createFile(blob);
+  trashFile_(doc.file_id); // replacing an older file
+  return updateRow_('car_documents', doc.id, merge_(doc, {
+    file_id: file.getId(),
+    file_name: cleanName,
+    file_type: blob.getContentType(),
+    file_size: bytes.length,
+  }));
+}
+
+function getFile_(me, docId) {
+  var doc = findBy_('car_documents', 'id', docId);
+  if (!doc || !doc.file_id) throw new Error('No file attached');
+  if (!canSeeDoc_(me, doc)) throw new Error('Not allowed');
+  var blob = DriveApp.getFileById(doc.file_id).getBlob();
+  return { name: doc.file_name, mimeType: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
+}
+
+function removeFile_(me, docId) {
+  requireAdmin_(me);
+  var doc = findBy_('car_documents', 'id', docId);
+  if (!doc) throw new Error('Document not found');
+  trashFile_(doc.file_id);
+  return updateRow_('car_documents', doc.id, merge_(doc, { file_id: null, file_name: null, file_type: null, file_size: null }));
 }
 
 // ---------------------------------------------------------------- sheet helpers

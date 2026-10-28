@@ -12,7 +12,8 @@ const ctx={console,JSON,Date,Math,String,Number,Object,Array,isNaN,encodeURIComp
  SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null,insertSheet:n=>(sheets[n]=mkSheet(n))}),flush(){}},
  Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},
   computeDigest:(a,v)=>Array.from(crypto.createHash('sha256').update(typeof v==='string'?Buffer.from(v):Buffer.from(v.map(b=>b&255))).digest()).map(b=>b>127?b-256:b),
-  newBlob:(x)=>({getBytes:()=>Array.from(Buffer.from(x)),getDataAsString:()=>Buffer.from(x.map?x.map(b=>b&255):x).toString()}),
+  newBlob:(x,type,name)=>({getBytes:()=>Array.isArray(x)?x:Array.from(Buffer.from(x)),getDataAsString:()=>Buffer.from(x.map?x.map(b=>b&255):x).toString(),getContentType:()=>type,getName:()=>name}),
+  base64Decode:s=>Array.from(Buffer.from(s,'base64')).map(b=>b>127?b-256:b),
   base64Encode:b=>Buffer.from(b.map(x=>x&255)).toString('base64'),
   base64EncodeWebSafe:b=>(typeof b==='string'?Buffer.from(b):Buffer.from(b.map(x=>x&255))).toString('base64').replace(/\+/g,'-').replace(/\//g,'_'),
   base64DecodeWebSafe:s=>Array.from(Buffer.from(s.replace(/-/g,'+').replace(/_/g,'/'),'base64')),
@@ -23,6 +24,9 @@ const ctx={console,JSON,Date,Math,String,Number,Object,Array,isNaN,encodeURIComp
  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
  ContentService:{MimeType:{JSON:'json'},createTextOutput:t=>({setMimeType(){return t}})},
  Logger:{log:m=>console.log('LOG:',m)},
+ DriveApp:(()=>{const files={};let n=0;const mkFile=(blob)=>{const id='f'+(++n);const f={id,blob,trashed:false,getId:()=>id,setTrashed(t){f.trashed=t},getBlob:()=>blob};files[id]=f;return f};
+  const folder={getId:()=>'folder1',isTrashed:()=>false,createFile:(b)=>mkFile(b)};
+  return {_files:files,createFolder:()=>folder,getFolderById:()=>folder,getFileById:(id)=>{if(!files[id])throw new Error('no file');return files[id]}}})(),
  UrlFetchApp:{fetch:()=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify(ctx._google)})},_google:{}};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),ctx);
 const call=(b)=>{ctx._cache={};vm.runInContext('_cache={}',ctx);const r=JSON.parse(ctx.doPost({postData:{contents:JSON.stringify(b)}}));return r};

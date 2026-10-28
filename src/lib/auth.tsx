@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { api, isConfigured, loadToken, setOnAuthLost, setToken } from './api';
+import { api, ApiError, isConfigured, loadToken, loadUserLocal, saveUserLocal, setOnAuthLost, setToken } from './api';
 import type { Profile } from './types';
 
 interface Session {
@@ -39,12 +39,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut();
     });
     (async () => {
+      if (!isConfigured || !(await loadToken())) {
+        setLoading(false);
+        return;
+      }
+      // Open instantly with the remembered user, then confirm with the server in the background.
+      const cached = await loadUserLocal<Profile>();
+      if (cached) {
+        setUser(cached);
+        setLoading(false);
+      }
       try {
-        if (isConfigured && (await loadToken())) {
-          setUser(await api<Profile>('me'));
+        const fresh = await api<Profile>('me');
+        setUser(fresh);
+        saveUserLocal(fresh);
+      } catch (e: any) {
+        if (!(e as ApiError)?.network) {
+          await setToken(null);
+          setUser(null);
         }
-      } catch {
-        await setToken(null);
       } finally {
         setLoading(false);
       }
@@ -56,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const s = await p;
       await setToken(s.token);
+      await saveUserLocal(s.user);
       setUser(s.user);
       return { error: null, user: s.user };
     } catch (e: any) {

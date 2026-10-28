@@ -213,7 +213,7 @@ export default function Reports() {
           {r.docs.length ? (
             r.docs.map((x) => (
               <View key={x.id}>
-                <Text style={{ color: C.muted, fontSize: 11, paddingHorizontal: 14, paddingTop: 8, fontFamily: F.mono }}>{carById.get(x.car_id)?.plate_no}</Text>
+                <Text style={{ color: C.muted, fontSize: 11, paddingHorizontal: 14, paddingTop: 8, fontFamily: F.mono }}>{x.car_id ? carById.get(x.car_id)?.plate_no : personById.get(x.driver_id ?? '')?.full_name}</Text>
                 <DocRow d={x} />
               </View>
             ))

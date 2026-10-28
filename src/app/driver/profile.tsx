@@ -3,7 +3,8 @@ import { Text, View } from 'react-native';
 
 import { useFormSheet } from '@/components/FormSheet';
 import { PageHeader } from '@/components/Greeting';
-import { Avatar, Badge, Button, C, Card, ExpiryBadge, F, KV, Row, Screen } from '@/components/ui';
+import { DocRow } from '@/components/rows';
+import { Avatar, Badge, Button, C, Card, Empty, ExpiryBadge, F, KV, ListCard, Row, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { clearFleetCache, notify, saveUser, useFleet } from '@/lib/data';
@@ -14,6 +15,7 @@ export default function DriverProfile() {
   const { data: d, reload } = useFleet();
   const form = useFormSheet();
   const me = d.me ?? user;
+  const myDocs = d.docs.filter((x) => x.driver_id === user?.id && !x.car_id);
 
   const editPhone = () =>
     form.open({
@@ -71,6 +73,10 @@ export default function DriverProfile() {
         <KV label="License no." value={me?.license_no ?? '-'} />
         <KV label="License expiry" value={<ExpiryBadge date={me?.license_expiry} />} />
       </Card>
+
+      <ListCard title="My documents">
+        {myDocs.length ? myDocs.map((x) => <DocRow key={x.id} d={x} />) : <Empty text="Your admin has not added documents yet" icon="document-outline" />}
+      </ListCard>
 
       <Row style={{ gap: 10, flexWrap: 'wrap' }}>
         <Button title="Edit phone" icon="call-outline" variant="light" style={{ flexGrow: 1 }} onPress={editPhone} />

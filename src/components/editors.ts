@@ -3,6 +3,7 @@ import {
   assignFields,
   carFields,
   docFields,
+  driverDocFields,
   editUserFields,
   expenseFields,
   incomeFields,
@@ -34,12 +35,16 @@ export function editCar(open: Open, reload: Reload, car?: Car) {
   });
 }
 
-export function editDoc(open: Open, reload: Reload, carId: string, doc?: CarDocument) {
+/** Add / edit a document of a car ({ carId }) or of a driver ({ driverId }). */
+export function editDoc(open: Open, reload: Reload, owner: { carId?: string; driverId?: string }, doc?: CarDocument) {
+  const forDriver = !!owner.driverId;
   open({
-    title: doc ? `Edit ${doc.doc_type}` : 'Add document',
-    fields: docFields,
-    initial: doc ?? { doc_type: 'Istimara' },
-    onSubmit: async (v) => saver('car_documents', reload, doc?.id)({ ...v, car_id: carId }),
+    title: doc ? `Edit ${doc.doc_type}` : forDriver ? 'Add driver document' : 'Add car document',
+    fields: forDriver ? driverDocFields : docFields,
+    initial: doc ?? { doc_type: forDriver ? 'Iqama' : 'Istimara' },
+    footer: doc ? undefined : 'After saving, use “Upload file” or “Take photo” on the document to attach a scan.',
+    onSubmit: async (v) =>
+      saver('car_documents', reload, doc?.id)({ ...v, car_id: owner.carId ?? null, driver_id: owner.driverId ?? null }),
   });
 }
 

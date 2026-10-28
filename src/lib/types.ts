@@ -38,12 +38,19 @@ export interface Car {
 
 export interface CarDocument {
   id: string;
-  car_id: string;
+  /** a document belongs to a car OR to a driver */
+  car_id: string | null;
+  driver_id?: string | null;
   doc_type: string;
   doc_number: string | null;
   issue_date: string | null;
   expiry_date: string | null;
   notes: string | null;
+  /** attached file in the admin's Google Drive */
+  file_id?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
 }
 
 export interface Assignment {
@@ -110,6 +117,8 @@ export interface DailyLog {
 }
 
 export const CAR_STATUSES: CarStatus[] = ['active', 'maintenance', 'inactive', 'sold'];
+
+export const DRIVER_DOC_TYPES = ['Iqama', 'Driving License', 'Passport', 'Contract', 'Medical', 'Other'];
 
 export const DOC_TYPES = [
   'Istimara',

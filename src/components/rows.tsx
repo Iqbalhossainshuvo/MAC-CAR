@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { cap, carName, expiryLevel, fmtDate, money, num, personName, today } from '@/lib/format';
 import { CATEGORY_LABEL, type Assignment, type Car, type CarDocument, type DailyLog, type Expense, type Income, type Profile } from '@/lib/types';
 
+import { DocFileBar } from './DocFile';
 import { Badge, C, ExpiryBadge, F, IconBtn, IconTile, ListItem, Row, statusTone, type IconName } from './ui';
 
 type Lookup<T> = Map<string, T>;
@@ -177,7 +178,20 @@ export function LogRow({
   );
 }
 
-export function DocRow({ d, onEdit, onDelete }: { d: CarDocument; onEdit?: () => void; onDelete?: () => void }) {
+export function DocRow({
+  d,
+  onEdit,
+  onDelete,
+  manageFile,
+  showFile = true,
+}: {
+  d: CarDocument;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  /** admin: may upload / replace / remove the attached file */
+  manageFile?: boolean;
+  showFile?: boolean;
+}) {
   const lvl = expiryLevel(d.expiry_date);
   return (
     <ListItem
@@ -187,13 +201,16 @@ export function DocRow({ d, onEdit, onDelete }: { d: CarDocument; onEdit?: () =>
         <View style={{ gap: 4, marginTop: 3 }}>
           {d.doc_number ? <Text style={{ color: C.muted, fontSize: 12 }}>No. {d.doc_number}</Text> : null}
           <ExpiryBadge date={d.expiry_date} />
+          {showFile ? <DocFileBar doc={d} manage={manageFile} /> : null}
         </View>
       }
       right={
-        <Row style={{ gap: 6 }}>
-          {onEdit ? <IconBtn icon="create-outline" label="Edit document" onPress={onEdit} /> : null}
-          {onDelete ? <IconBtn icon="trash-outline" color={C.red} label="Delete document" onPress={onDelete} /> : null}
-        </Row>
+        onEdit || onDelete ? (
+          <View style={{ gap: 6, alignSelf: 'flex-start' }}>
+            {onEdit ? <IconBtn icon="create-outline" label="Edit document" onPress={onEdit} /> : null}
+            {onDelete ? <IconBtn icon="trash-outline" color={C.red} label="Delete document" onPress={onDelete} /> : null}
+          </View>
+        ) : undefined
       }
     />
   );

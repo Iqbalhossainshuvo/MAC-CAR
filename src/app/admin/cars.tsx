@@ -103,10 +103,11 @@ export default function Cars() {
                   <Row>
                     <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>Profit</Text>
                     <Text style={{ color: m.profit >= 0 ? C.green : C.red, fontFamily: F.monoBold }}>{money(m.profit)}</Text>
-                    <Text style={{ color: C.muted, fontSize: 11 }}>
-                      ({money(m.income)} − {money(m.expense)})
-                    </Text>
+
                   </Row>
+                  <Text style={{ color: C.muted, fontSize: 12, fontFamily: F.regular }}>
+                    Income {money(m.income)} · Expense {money(m.expense)}
+                  </Text>
                 </View>
 
                 <View style={{ marginTop: 12, gap: 6 }}>

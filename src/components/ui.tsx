@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type StyleProp,
   type TextInputProps,
@@ -89,7 +90,7 @@ const blur = isWeb ? ({ backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blu
 
 export function AppBackground({ children }: { children: ReactNode }) {
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg }}>
+    <View style={{ flex: 1, backgroundColor: C.bg, overflow: 'hidden', width: '100%', maxWidth: '100%' as any }}>
       <LinearGradient colors={['#ECE8FF', '#F6F4FF', '#EEF3FF']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <View pointerEvents="none" style={[s.blob, { top: -140, left: -120, backgroundColor: 'rgba(155,123,255,0.28)' }]} />
       <View pointerEvents="none" style={[s.blob, { top: 260, right: -170, backgroundColor: 'rgba(106,139,255,0.20)' }]} />
@@ -399,16 +400,23 @@ export function RoundBtn({ icon, onPress, label, dot }: { icon: IconName; onPres
 }
 
 export function Fab({ onPress, icon = 'add', label }: { onPress: () => void; icon?: IconName; label: string }) {
+  const narrow = useWindowDimensions().width < 600;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [s.fab, glow(C.primary, 30, 0.45), { opacity: pressed ? 0.9 : 1 }, pointer]}
+      style={({ pressed }) => [
+        s.fab,
+        narrow && { width: 58, height: 58, paddingHorizontal: 0, justifyContent: 'center', borderRadius: 29 },
+        glow(C.primary, 30, 0.45),
+        { opacity: pressed ? 0.9 : 1 },
+        pointer,
+      ]}
     >
-      <LinearGradient colors={GRAD as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: 28 }]} />
-      <Ionicons name={icon} size={22} color="#fff" />
-      <Text style={{ color: '#fff', fontFamily: F.bold, fontSize: 14 }}>{label}</Text>
+      <LinearGradient colors={GRAD as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: 29 }]} />
+      <Ionicons name={icon} size={narrow ? 28 : 22} color="#fff" />
+      {narrow ? null : <Text style={{ color: '#fff', fontFamily: F.bold, fontSize: 14 }}>{label}</Text>}
     </Pressable>
   );
 }
@@ -520,7 +528,7 @@ export function StatCard({
       <View style={[s.statIcon, compact && { width: 34, height: 34, marginBottom: 10 }, { backgroundColor: hexA(c, 0.13) }]}>
         <Ionicons name={icon} size={compact ? 16 : 18} color={c} />
       </View>
-      <Text style={[s.statValue, compact && { fontSize: 17 }, tone === 'red' ? { color: C.red } : null]} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={[s.statValue, compact && { fontSize: 16 }, tone === 'red' ? { color: C.red } : null]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
       <Text style={s.statLabel} numberOfLines={1}>
@@ -571,16 +579,25 @@ export function ListItem({
   onPress?: () => void;
   left?: ReactNode;
 }) {
+  const body = (
+    <>
+      {left}
+      <View style={{ flex: 1 }}>
+        <Text style={s.itemTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        {typeof subtitle === 'string' ? <Text style={s.itemSub}>{subtitle}</Text> : subtitle}
+      </View>
+      {right}
+    </>
+  );
+  // Rows without a tap action are plain views, so buttons inside them stay clickable everywhere.
+  if (!onPress) return <View style={s.item}>{body}</View>;
   return (
     <Pressable
       onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole={onPress ? 'button' : undefined}
-      style={({ pressed, hovered }: any) => [
-        s.item,
-        (pressed || hovered) && onPress ? { backgroundColor: hexA(C.primary, 0.05) } : null,
-        onPress ? pointer : null,
-      ]}
+      accessibilityRole="button"
+      style={({ pressed, hovered }: any) => [s.item, pressed || hovered ? { backgroundColor: hexA(C.primary, 0.05) } : null, pointer]}
     >
       {left}
       <View style={{ flex: 1 }}>
@@ -841,7 +858,7 @@ export function Col({ children, min = 340 }: { children: ReactNode; min?: number
 
 export const s = StyleSheet.create({
   blob: { position: 'absolute', width: 420, height: 420, borderRadius: 210, ...(isWeb ? ({ filter: 'blur(60px)' } as any) : { opacity: 0.6 }) },
-  screen: { padding: 16, paddingBottom: 130, width: '100%', maxWidth: 1120, alignSelf: 'center' },
+  screen: { padding: 16, paddingBottom: 140, width: '100%', maxWidth: 1120, alignSelf: 'center' },
   card: {
     backgroundColor: C.panel,
     borderRadius: 24,
@@ -956,10 +973,11 @@ export const s = StyleSheet.create({
   chip: { paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 14 },
   chipOn: { backgroundColor: C.primary },
   chipText: { color: C.muted, fontSize: 13, fontFamily: F.semi },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 14 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   stat: {
     flexGrow: 1,
-    flexBasis: 150,
+    flexBasis: 130,
+    minWidth: 0,
     backgroundColor: C.panel,
     borderRadius: 22,
     padding: 14,
@@ -967,7 +985,7 @@ export const s = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.9)',
     ...blur,
   },
-  statCompact: { flexBasis: 96, padding: 12, borderRadius: 20 },
+  statCompact: { flexBasis: 80, minWidth: 0, padding: 11, borderRadius: 20 },
   statIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   statLabel: { color: C.muted, fontSize: 13, fontFamily: F.semi, marginTop: 2 },
   statValue: { fontSize: 22, fontFamily: F.display, color: C.text, letterSpacing: -0.3 },

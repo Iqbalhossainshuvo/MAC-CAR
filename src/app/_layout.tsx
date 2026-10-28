@@ -12,6 +12,7 @@ import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { SyncPill } from '@/components/SyncPill';
 import { AppBackground, C } from '@/components/ui';
 import { AuthProvider } from '@/lib/auth';
 
@@ -46,6 +47,7 @@ export default function RootLayout() {
             <StatusBar style="dark" />
             <AppBackground>
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+              <SyncPill />
             </AppBackground>
           </AuthProvider>
         </ThemeProvider>

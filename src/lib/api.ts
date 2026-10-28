@@ -22,15 +22,34 @@ export async function loadToken(): Promise<string | null> {
 export async function setToken(t: string | null) {
   token = t;
   if (t) await AsyncStorage.setItem(TOKEN_KEY, t);
-  else await AsyncStorage.removeItem(TOKEN_KEY);
+  else await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+}
+
+const USER_KEY = 'maccar.user';
+
+/** The signed-in user, remembered so the app opens without waiting for the server. */
+export async function saveUserLocal(u: unknown) {
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(u)).catch(() => {});
+}
+
+export async function loadUserLocal<T>(): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
 }
 
 export class ApiError extends Error {
   /** true when the session is no longer valid and the user must sign in again */
   auth: boolean;
-  constructor(message: string) {
+  /** true when the server could not be reached (offline) */
+  network: boolean;
+  constructor(message: string, network = false) {
     super(message);
-    this.auth = /sign in|not active|session/i.test(message);
+    this.network = network;
+    this.auth = !network && /sign in|not active|session/i.test(message);
   }
 }
 
@@ -54,7 +73,7 @@ export async function api<T = any>(action: string, payload: Record<string, unkno
       redirect: 'follow',
     });
   } catch {
-    throw new ApiError('No internet connection, or the Google Sheets server could not be reached.');
+    throw new ApiError('No internet connection, or the Google Sheets server could not be reached.', true);
   }
   const text = await res.text();
   let body: { ok: boolean; data?: T; error?: string };

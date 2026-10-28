@@ -130,14 +130,15 @@ export default function CarDetails() {
 
           <ListCard
             title="Documents"
-            right={<Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, car.id)} />}
+            right={<Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, { carId: car.id })} />}
           >
             {v.docs.length ? (
               v.docs.map((x) => (
                 <DocRow
                   key={x.id}
                   d={x}
-                  onEdit={() => editDoc(form.open, reload, car.id, x)}
+                  manageFile
+                  onEdit={() => editDoc(form.open, reload, { carId: car.id }, x)}
                   onDelete={() => deleteRow('car_documents', x.id, x.doc_type, reload)}
                 />
               ))

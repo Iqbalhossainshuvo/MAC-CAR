@@ -114,8 +114,17 @@ export interface Alert {
 export function expiryAlerts(d: FleetData, within = 30): Alert[] {
   const out: Alert[] = [];
   const cars = new Map(d.cars.map((c) => [c.id, c]));
+  const people = new Map(d.profiles.map((p) => [p.id, p]));
   for (const doc of d.docs) {
-    const car = cars.get(doc.car_id);
+    if (!doc.car_id && doc.driver_id) {
+      // driver's own document (Iqama, license copy…)
+      const p = people.get(doc.driver_id);
+      const days = daysUntil(doc.expiry_date);
+      if (!p || !p.active || days === null || days > within) continue;
+      out.push({ key: doc.id, title: `${doc.doc_type} · ${personName(p)}`, sub: 'Driver document', date: doc.expiry_date!, days, href: `/admin/driver/${p.id}` });
+      continue;
+    }
+    const car = doc.car_id ? cars.get(doc.car_id) : undefined;
     if (!car || car.status === 'sold' || car.status === 'inactive') continue;
     const days = daysUntil(doc.expiry_date);
     if (days === null || days > within) continue;

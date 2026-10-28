@@ -2,9 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 
-import { deleteRow, editAssignment, editDriverProfile, editExpense, resetPassword } from '@/components/editors';
+import { deleteRow, editAssignment, editDoc, editDriverProfile, editExpense, resetPassword } from '@/components/editors';
 import { useFormSheet } from '@/components/FormSheet';
-import { AssignmentRow, ExpenseRow, LogRow } from '@/components/rows';
+import { AssignmentRow, DocRow, ExpenseRow, LogRow } from '@/components/rows';
 import {
   Badge,
   Button,
@@ -57,6 +57,8 @@ export default function DriverDetails() {
       cash: sum(logs, (l) => l.cash_collected),
     };
   }, [d, p]);
+
+  const driverDocs = p ? d.docs.filter((x) => x.driver_id === p.id && !x.car_id) : [];
 
   if (firstLoad) return <Loading />;
   if (!p || !v) {
@@ -137,6 +139,25 @@ export default function DriverDetails() {
             <KV label="License expiry" value={<ExpiryBadge date={p.license_expiry} />} />
             {p.notes ? <KV label="Notes" value={p.notes} /> : null}
           </Card>
+
+          <ListCard
+            title="Documents"
+            right={<Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, { driverId: p.id })} />}
+          >
+            {driverDocs.length ? (
+              driverDocs.map((x) => (
+                <DocRow
+                  key={x.id}
+                  d={x}
+                  manageFile
+                  onEdit={() => editDoc(form.open, reload, { driverId: p.id }, x)}
+                  onDelete={() => deleteRow('car_documents', x.id, x.doc_type, reload)}
+                />
+              ))
+            ) : (
+              <Empty text="Add Iqama, license or passport copies with their expiry dates" icon="document-outline" />
+            )}
+          </ListCard>
 
           <ListCard
             title="Cars · when & which"

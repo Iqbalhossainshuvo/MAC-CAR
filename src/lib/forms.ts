@@ -2,7 +2,7 @@ import type { FieldDef } from '@/components/FormSheet';
 import type { Option } from '@/components/ui';
 
 import { cap, carName, personName } from './format';
-import { CAR_STATUSES, CATEGORY_LABEL, DOC_TYPES, EXPENSE_CATEGORIES, type Car, type Profile } from './types';
+import { CAR_STATUSES, CATEGORY_LABEL, DOC_TYPES, DRIVER_DOC_TYPES, EXPENSE_CATEGORIES, type Car, type Profile } from './types';
 
 export const carOptions = (cars: Car[]): Option[] =>
   cars.map((c) => ({ value: c.id, label: carName(c), sub: cap(c.status) }));
@@ -29,11 +29,19 @@ export const carFields: FieldDef[] = [
   { key: 'notes', label: 'Notes', type: 'multiline' },
 ];
 
+export const driverDocFields: FieldDef[] = [
+  { key: 'doc_type', label: 'Document type', type: 'select', options: opts(DRIVER_DOC_TYPES), required: true },
+  { key: 'doc_number', label: 'Document number' },
+  { key: 'issue_date', label: 'Issue date', type: 'date' },
+  { key: 'expiry_date', label: 'Expiry date', type: 'date' },
+  { key: 'notes', label: 'Notes', type: 'multiline' },
+];
+
 export const docFields: FieldDef[] = [
   { key: 'doc_type', label: 'Document type', type: 'select', options: opts(DOC_TYPES), required: true },
   { key: 'doc_number', label: 'Document / policy number' },
   { key: 'issue_date', label: 'Issue date', type: 'date' },
-  { key: 'expiry_date', label: 'Expiry date', type: 'date', required: true },
+  { key: 'expiry_date', label: 'Expiry date', type: 'date' },
   { key: 'notes', label: 'Notes', type: 'multiline' },
 ];
 

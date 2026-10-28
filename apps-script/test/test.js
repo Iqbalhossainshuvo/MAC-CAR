@@ -46,4 +46,22 @@ r=call({action:'login',username:'admin',password:'123456 '});ok(r.ok,'trailing s
 r=call({action:'data',token:r.data.token});ok(r.ok&&r.data.profiles.every(p=>!('set_password' in p)),'set_password never sent to app');
 
 
+// --- files on documents (Google Drive)
+{
+const A2=call({action:'login',username:'admin',password:'123456'}).data.token;
+const docs=call({action:'data',token:A2}).data.docs;const doc=docs[0];
+const b64=Buffer.from('hello pdf').toString('base64');
+r=call({action:'uploadFile',token:A2,id:doc.id,name:'istimara.pdf',mimeType:'application/pdf',base64:b64});ok(r.ok&&r.data.file_id&&r.data.file_size===9&&r.data.file_name==='istimara.pdf','upload file');
+const f1=r.data.file_id;
+r=call({action:'getFile',token:A2,id:doc.id});ok(r.ok&&Buffer.from(r.data.base64,'base64').toString()==='hello pdf'&&r.data.mimeType==='application/pdf','download file');
+r=call({action:'uploadFile',token:A2,id:doc.id,name:'new.jpg',mimeType:'image/jpeg',base64:'data:image/jpeg;base64,'+Buffer.from('jpg!').toString('base64')});ok(r.ok&&r.data.file_id!==f1&&ctx.DriveApp._files[f1].trashed,'replace file trashes old one');
+r=call({action:'save',token:A2,table:'car_documents',row:{id:doc.id,file_id:'hack',notes:'x'}});ok(r.ok&&r.data.file_id!=='hack','file fields cannot be overwritten by save');
+r=call({action:'uploadFile',token:A2,id:doc.id,name:'big.bin',base64:Buffer.alloc(11*1024*1024).toString('base64')});ok(!r.ok&&/too big/.test(r.error),'10 MB limit');
+const D2=call({action:'login',username:'rahim',password:'driver1'});
+// driver doc
+r=call({action:'save',token:A2,table:'car_documents',row:{driver_id:drv,doc_type:'Iqama',expiry_date:'2027-05-05'}});ok(r.ok&&r.data.driver_name,'driver document saved');
+r=call({action:'save',token:A2,table:'car_documents',row:{doc_type:'Other'}});ok(!r.ok,'document needs car or driver');
+r=call({action:'removeFile',token:A2,id:doc.id});ok(r.ok&&!r.data.file_id,'remove file');
+}
+
 console.log(fails?fails+' FAILED':'ALL PASSED');

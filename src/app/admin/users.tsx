@@ -96,10 +96,7 @@ export default function Users() {
                         <Badge text={p.active ? 'Active' : 'Inactive'} tone={p.active ? 'green' : 'gray'} />
                         {!p.has_password ? <Badge text="Google only" tone="blue" /> : null}
                       </Row>
-                    </View>
-                  }
-                  right={
-                    <Row style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 140 }}>
+                    <Row style={{ gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                       <IconBtn icon="create-outline" label="Edit user" onPress={() => editUser(form.open, reload, p)} />
                       <IconBtn icon="key-outline" color={C.amber} label="Set password" onPress={() => resetPassword(form.open, p)} />
                       {!self ? (
@@ -111,6 +108,8 @@ export default function Users() {
                         />
                       ) : null}
                     </Row>
+                  
+                    </View>
                   }
                 />
               );
