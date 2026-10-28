@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useFleet } from '@/lib/data';
 import { expiryLevel, fmtDate, inRange, money, monthEnd, monthStart, num, personName, sum, today } from '@/lib/format';
+import { carriedNote, driverAccount, salaryDues, salaryParts } from '@/lib/payroll';
 import { currentAssignment } from '@/lib/stats';
 
 export default function DriverHome() {
@@ -54,6 +55,9 @@ export default function DriverHome() {
       lastLog: d.logs[0],
     };
   }, [d, carById, user?.id]);
+
+  const dues = me ? salaryDues(driverAccount(d, me.id)) : null;
+  const parts = salaryParts(me);
 
   if (firstLoad) return <Loading />;
 
@@ -121,6 +125,36 @@ export default function DriverHome() {
           </>
         )}
       </HeroCard>
+
+      {me && (parts.length || me.monthly_salary || dues?.payable || dues?.owes) ? (
+        <Pressable onPress={() => router.push('/driver/profile')} accessibilityRole="button" accessibilityLabel="Open my salary">
+          <ListCard title="My salary">
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }}>
+              {parts.map(([label, val]) => (
+                <Row key={label} style={{ justifyContent: 'space-between' }}>
+                  <Text style={{ color: C.muted, fontFamily: F.regular }}>{label}</Text>
+                  <Text style={{ color: C.text, fontFamily: F.semi }}>{money(val)}</Text>
+                </Row>
+              ))}
+              <Row style={{ justifyContent: 'space-between', paddingTop: parts.length ? 6 : 0, borderTopWidth: parts.length ? 1 : 0, borderTopColor: C.border }}>
+                <Text style={{ color: C.text, fontFamily: F.bold }}>Monthly salary</Text>
+                <Text style={{ color: C.text, fontFamily: F.bold }}>{me.monthly_salary ? money(me.monthly_salary) : 'Not set'}</Text>
+              </Row>
+              {dues ? (
+                <View style={{ marginTop: 6, padding: 12, borderRadius: 14, backgroundColor: dues.owes ? 'rgba(229,72,77,0.08)' : 'rgba(34,160,107,0.08)' }}>
+                  <Text style={{ color: C.muted, fontFamily: F.semi, fontSize: 12 }}>{dues.owes ? 'You owe the company' : 'Company owes you now'}</Text>
+                  <Text style={{ color: dues.owes ? C.red : C.green, fontFamily: F.display, fontSize: 24, marginTop: 2 }}>
+                    {money(dues.owes || dues.payable)}
+                  </Text>
+                  {dues.carried.length ? (
+                    <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 11, marginTop: 2 }}>{carriedNote(dues, money)}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          </ListCard>
+        </Pressable>
+      ) : null}
 
       <Row style={{ gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <Button

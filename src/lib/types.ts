@@ -34,6 +34,12 @@ export interface Profile {
   has_password?: boolean;
   /** driver's fixed monthly salary (SAR) */
   monthly_salary?: number | null;
+  /** salary structure (monthly_salary = sum of these) */
+  basic_salary?: number | null;
+  food_allowance?: number | null;
+  housing_allowance?: number | null;
+  transport_allowance?: number | null;
+  other_allowance?: number | null;
   /** manager only, e.g. "cars:edit,expenses:view,approve" */
   permissions?: string | null;
 }

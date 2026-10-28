@@ -7,7 +7,7 @@ import type { FormConfig } from '@/components/FormSheet';
 import { saveRow, type FleetData } from '@/lib/data';
 import { usePerm } from '@/lib/perms';
 import { fmtDate, money, personName, today } from '@/lib/format';
-import { driverAccount, LINE_LABEL, monthLabel, type AccountLine, type LineKind } from '@/lib/payroll';
+import { carriedNote, driverAccount, LINE_LABEL, monthLabel, salaryDues, salaryParts, type AccountLine, type LineKind } from '@/lib/payroll';
 import type { PayType, Profile } from '@/lib/types';
 
 import { Badge, Button, C, Empty, F, HeroCard, IconBtn, IconTile, ListCard, ListItem, Row, hexA, type IconName } from './ui';
@@ -58,6 +58,8 @@ export function SalaryAccount({
 }) {
   const acc = useMemo(() => driverAccount(d, driver.id), [d, driver.id]);
   const perm = usePerm();
+  const dues = useMemo(() => salaryDues(acc), [acc]);
+  const parts = salaryParts(driver);
   // what the admin / manager may do here
   const canPay = !!admin && perm.can('salary', 'edit');
   const canFine = !!admin && perm.can('expenses', 'edit');
@@ -90,12 +92,48 @@ export function SalaryAccount({
           Monthly salary {driver.monthly_salary ? money(driver.monthly_salary) : 'not set'}
           {cur ? ` · This month: salary ${money(cur.salary)}, advances ${money(cur.advances)}, fines ${money(cur.fines)}, paid ${money(cur.paid)}` : ''}
         </Text>
+        {dues.carried.length ? (
+          <View style={{ marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)' }}>
+            <Text style={{ color: '#fff', fontFamily: F.semi, fontSize: 12 }}>{carriedNote(dues, money)}</Text>
+          </View>
+        ) : null}
         {admin && !salaryThisMonth ? (
           <View style={{ marginTop: 10, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.95)' }}>
             <Text style={{ color: C.amber, fontFamily: F.semi, fontSize: 12 }}>{monthLabel(thisMonth)} salary not added yet</Text>
           </View>
         ) : null}
       </HeroCard>
+
+      {parts.length ? (
+        <ListCard title={`Salary structure · ${money(driver.monthly_salary ?? 0)} / month`}>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
+            {parts.map(([label, v]) => (
+              <Row key={label} style={{ justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ color: C.muted, fontFamily: F.regular }}>{label}</Text>
+                <Text style={{ color: C.text, fontFamily: F.semi }}>{money(v)}</Text>
+              </Row>
+            ))}
+            <Row style={{ justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border }}>
+              <Text style={{ color: C.text, fontFamily: F.bold }}>Total monthly salary</Text>
+              <Text style={{ color: C.text, fontFamily: F.bold }}>{money(driver.monthly_salary ?? 0)}</Text>
+            </Row>
+          </View>
+        </ListCard>
+      ) : null}
+
+      {dues.byMonth.length > 1 || dues.carried.length ? (
+        <ListCard title="Unpaid by month">
+          {dues.byMonth.map((m) => (
+            <ListItem
+              key={m.month}
+              left={<IconTile icon="time-outline" color={m.month < thisMonth ? C.amber : C.primary} size={36} />}
+              title={monthLabel(m.month)}
+              subtitle={m.month < thisMonth ? 'Carried forward — not fully paid yet' : 'This month'}
+              right={<Text style={{ fontFamily: F.bold, color: C.text }}>{money(m.amount)}</Text>}
+            />
+          ))}
+        </ListCard>
+      ) : null}
 
       {(canPay || canFine) && open && reload ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>

@@ -22,8 +22,9 @@ var TABLES = {
   users: {
     sheet: 'Users',
     cols: ['id', 'username', 'email', 'full_name', 'phone', 'role', 'active', 'nationality', 'iqama_no',
-      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt', 'monthly_salary', 'permissions'],
-    num: ['monthly_salary'],
+      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt', 'monthly_salary', 'permissions',
+      'basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'],
+    num: ['monthly_salary', 'basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'],
     bool: ['active'],
   },
   cars: {
@@ -108,7 +109,21 @@ var REQUIRED = {
   payroll: ['driver_id', 'type', 'amount', 'entry_date'],
 };
 
-var MONEY_FIELDS = ['amount', 'purchase_price', 'monthly_salary'];
+var SALARY_PARTS = ['basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'];
+var MONEY_FIELDS = ['amount', 'purchase_price', 'monthly_salary'].concat(SALARY_PARTS);
+
+/** Monthly salary = basic + food + housing + transport + other (when any part is set). */
+function salaryTotal_(u) {
+  var any = false;
+  var cents = 0;
+  SALARY_PARTS.forEach(function (k) {
+    if (u[k] !== null && u[k] !== undefined && u[k] !== '') {
+      any = true;
+      cents += Math.round(Number(u[k]) * 100);
+    }
+  });
+  return any ? cents / 100 : null;
+}
 
 /** Round money to 2 decimals exactly (avoids 2500.555 → 2500.55 floating-point errors). */
 function round2_(v) {
@@ -542,9 +557,14 @@ function managerData_(me, users, cars, docs, assignments, expenses, logs) {
     if (u.id === me.id) return publicUser_(u);
     if (u.role !== 'driver') return { id: u.id, full_name: u.full_name, username: u.username, role: u.role, active: u.active };
     var p = publicUser_(u);
-    if (!seePay) delete p.monthly_salary;
+    if (!seePay) {
+      delete p.monthly_salary;
+      SALARY_PARTS.forEach(function (k) { delete p[k]; });
+    }
     if (!seeDrivers) {
-      return { id: p.id, full_name: p.full_name, username: p.username, role: p.role, active: p.active, monthly_salary: p.monthly_salary };
+      var slim = { id: p.id, full_name: p.full_name, username: p.username, role: p.role, active: p.active, monthly_salary: p.monthly_salary };
+      if (seePay) SALARY_PARTS.forEach(function (k) { slim[k] = p[k]; });
+      return slim;
     }
     return p;
   });
@@ -769,7 +789,10 @@ function saveUser_(me, input) {
     if (row.role && row.role !== 'driver') throw new Error('Only the admin can give admin or manager access');
     row.role = 'driver';
     delete row.permissions;
-    if (!can_(me, 'salary', 'edit')) delete row.monthly_salary;
+    if (!can_(me, 'salary', 'edit')) {
+      delete row.monthly_salary;
+      SALARY_PARTS.forEach(function (k) { delete row[k]; });
+    }
   }
 
   var all = readTable_('users');
@@ -791,6 +814,8 @@ function saveUser_(me, input) {
       throw new Error('You cannot remove your own admin access');
     }
     var merged = merge_(old, row);
+    var total = salaryTotal_(merged);
+    if (total !== null) merged.monthly_salary = total;
     if (password && (isAdmin_(me) || helper)) {
       merged.salt = Utilities.getUuid();
       merged.password_hash = hash_(password, merged.salt);
@@ -810,6 +835,8 @@ function saveUser_(me, input) {
     row.active = row.active === null || row.active === undefined ? true : row.active;
     row.salt = Utilities.getUuid();
     row.password_hash = hash_(password, row.salt);
+    var total0 = salaryTotal_(row);
+    if (total0 !== null) row.monthly_salary = total0;
     saved = insertRow_('users', row);
   }
   return publicUser_(saved);

@@ -137,10 +137,20 @@ export const logFields = (cars: Car[]): FieldDef[] => [
   { key: 'work_details', label: 'Work done today', type: 'multiline', required: true },
 ];
 
+/** Salary structure set by the admin. Monthly salary = the sum (worked out by the server). */
+export const SALARY_FIELDS: FieldDef[] = [
+  { key: 'basic_salary', label: 'Basic salary (SAR / month)', type: 'number', hint: 'Monthly salary = basic + all allowances. The driver sees this in the app.' },
+  { key: 'food_allowance', label: 'Food allowance (SAR / month)', type: 'number' },
+  { key: 'housing_allowance', label: 'Accommodation allowance (SAR / month)', type: 'number' },
+  { key: 'transport_allowance', label: 'Transport allowance (SAR / month)', type: 'number' },
+  { key: 'other_allowance', label: 'Other allowance (SAR / month)', type: 'number' },
+];
+export const SALARY_KEYS = SALARY_FIELDS.map((f) => f.key);
+
 export const profileFields: FieldDef[] = [
   { key: 'full_name', label: 'Full name', required: true },
   { key: 'phone', label: 'Phone', type: 'phone' },
-  { key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' },
+  ...SALARY_FIELDS,
   { key: 'nationality', label: 'Nationality' },
   { key: 'iqama_no', label: 'Iqama / ID number' },
   { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
@@ -179,7 +189,7 @@ export const newUserFields: FieldDef[] = [
     required: true,
   },
   PERMS_FIELD,
-  driverOnly({ key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' }),
+  ...SALARY_FIELDS.map(driverOnly),
   driverOnly({ key: 'license_no', label: 'Driving license number' }),
   driverOnly({ key: 'license_expiry', label: 'License expiry', type: 'date' }),
   driverOnly({ key: 'iqama_no', label: 'Iqama / ID number' }),
@@ -200,7 +210,7 @@ export const editUserFields: FieldDef[] = [
     required: true,
   },
   PERMS_FIELD,
-  driverOnly({ key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' }),
+  ...SALARY_FIELDS.map(driverOnly),
   driverOnly({ key: 'nationality', label: 'Nationality' }),
   driverOnly({ key: 'iqama_no', label: 'Iqama / ID number' }),
   driverOnly({ key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' }),

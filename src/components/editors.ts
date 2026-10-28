@@ -10,10 +10,11 @@ import {
   newUserFields,
   payFields,
   profileFields,
+  SALARY_KEYS,
 } from '@/lib/forms';
 import { today } from '@/lib/format';
 import { can } from '@/lib/perms';
-import { monthLabel, monthLastDay, PAY_LABEL, recentMonths } from '@/lib/payroll';
+import { monthLabel, monthLastDay, PAY_LABEL, recentMonths, salaryPartsText } from '@/lib/payroll';
 import type { Assignment, Car, CarDocument, Expense, Income, PayEntry, PayType, Profile } from '@/lib/types';
 
 import type { FieldDef, FormConfig } from './FormSheet';
@@ -24,8 +25,14 @@ function userFieldsForMe(fields: FieldDef[]): FieldDef[] {
   if (!me || me.role === 'admin') return fields;
   return fields
     .filter((f) => f.key !== 'role' && f.key !== 'permissions')
-    .filter((f) => f.key !== 'monthly_salary' || can(me, 'salary', 'edit'))
-    .map((f) => (f.key === 'monthly_salary' ? { ...f, showIf: undefined } : f));
+    .filter((f) => !SALARY_KEYS.includes(f.key) || can(me, 'salary', 'edit'))
+    .map((f) => (SALARY_KEYS.includes(f.key) ? { ...f, showIf: undefined } : f));
+}
+
+/** Older drivers only have a single monthly salary: show it as the basic salary. */
+function withSalaryParts(p: Profile): Record<string, any> {
+  const hasParts = SALARY_KEYS.some((k) => (p as any)[k] != null);
+  return hasParts || p.monthly_salary == null ? p : { ...p, basic_salary: p.monthly_salary };
 }
 
 type Open = (c: FormConfig | null) => void;
@@ -109,7 +116,7 @@ export function editUser(open: Open, reload: Reload, p: Profile) {
   open({
     title: `Edit ${p.full_name || p.username}`,
     fields: userFieldsForMe(editUserFields),
-    initial: p,
+    initial: withSalaryParts(p),
     onSubmit: async (v) => {
       const u = await saveUser({ ...v, id: p.id });
       if (u) await reload();
@@ -122,7 +129,7 @@ export function editDriverProfile(open: Open, reload: Reload, p: Profile) {
   open({
     title: 'Driver details',
     fields: userFieldsForMe(profileFields),
-    initial: p,
+    initial: withSalaryParts(p),
     onSubmit: async (v) => {
       const u = await saveUser({ ...v, id: p.id });
       if (u) await reload();
@@ -162,7 +169,12 @@ export function editPay(
   const freeMonth = months.find((m) => !taken.has(m.value))?.value ?? thisMonth;
   const base =
     type === 'salary'
-      ? { month: freeMonth, amount: driver.monthly_salary ?? undefined, entry_date: monthLastDay(freeMonth) > today() ? today() : monthLastDay(freeMonth) }
+      ? {
+          month: freeMonth,
+          amount: driver.monthly_salary ?? undefined,
+          entry_date: monthLastDay(freeMonth) > today() ? today() : monthLastDay(freeMonth),
+          description: salaryPartsText(driver) || undefined,
+        }
       : { amount: suggested && suggested > 0 ? suggested : undefined, entry_date: today(), method: type === 'advance' || type === 'payment' ? 'cash' : undefined };
   open({
     title: `${entry ? 'Edit' : 'Add'} ${PAY_LABEL[type].toLowerCase()} · ${driver.full_name || driver.username}`,

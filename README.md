@@ -42,6 +42,12 @@
 - ড্রাইভার Profile → **My salary**-তে নিজের মাস-ভিত্তিক হিসাব দেখতে পান।
 - Dashboard-এর নিট লাভ = ইনকাম − গাড়ির খরচ − ড্রাইভারের বেতন (জরিমানা কেটে)।
 
+### বেতনের কাঠামো, বকেয়া ও বেতনের সময়
+- Driver → Edit driver (বা User → Edit)-এ **Basic salary, Food, Accommodation, Transport, Other allowance** আলাদা দিন। মোট মাসিক বেতন নিজে থেকে যোগ হয়।
+- ড্রাইভার তার Home ও Profile-এ এই কাঠামো এবং "Company owes you now" দেখেন।
+- প্রতি মাসের **২৫ তারিখ থেকে পরের মাসের ৫ তারিখ** পর্যন্ত Admin-এর Dashboard ও Salary পেজে **Salary time** কার্ড আসে: কার বেতন যোগ হয়নি, কাকে কত দিতে হবে।
+- কম টাকা দিলে বাকিটা পরের মাসে যোগ হয়ে মোট দেখায়, নিচে ছোট করে লেখা থাকে: "Includes unpaid from September 2026 (SAR 500)"। টাকা দিলে আগে পুরনো মাসের বকেয়া শোধ হয়।
+
 ### ডকুমেন্ট ফাইল
 
 প্রতিটি ডকুমেন্টে (গাড়ির Istimara/Insurance/Fahas বা ড্রাইভারের Iqama/License/Passport) ফাইল **আপলোড, ক্যামেরায় ছবি, দেখা, ডাউনলোড, বদলানো ও মুছা** যায়। ফাইল Admin-এর Google Drive-এর **MAC CAR Files** ফোল্ডারে থাকে (সর্বোচ্চ ১০ MB, PDF বা ছবি)।

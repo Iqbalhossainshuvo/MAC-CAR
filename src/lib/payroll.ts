@@ -233,3 +233,95 @@ export function monthLastDay(m: string) {
   const d = new Date(y, mo, 0);
   return `${y}-${String(mo).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// ---------------------------------------------------------------- salary structure & dues
+
+export const SALARY_PARTS = [
+  { key: 'basic_salary', label: 'Basic salary' },
+  { key: 'food_allowance', label: 'Food allowance' },
+  { key: 'housing_allowance', label: 'Accommodation' },
+  { key: 'transport_allowance', label: 'Transport' },
+  { key: 'other_allowance', label: 'Other allowance' },
+] as const;
+
+export type SalaryPartKey = (typeof SALARY_PARTS)[number]['key'];
+
+/** The parts that are set, e.g. [["Basic salary", 2000], ["Food allowance", 300]] */
+export function salaryParts(p: Partial<Record<SalaryPartKey, number | null>> | null | undefined): [string, number][] {
+  if (!p) return [];
+  return SALARY_PARTS.filter((x) => p[x.key] != null && Number(p[x.key]) !== 0).map((x) => [x.label, Number(p[x.key])]);
+}
+
+export function salaryPartsText(p: Partial<Record<SalaryPartKey, number | null>> | null | undefined) {
+  return salaryParts(p)
+    .map(([l, v]) => `${l.replace(' salary', '').replace(' allowance', '')} ${fromCents(toCents(v))}`)
+    .join(' + ');
+}
+
+export interface Dues {
+  /** what the company owes the driver right now (0 if the driver owes) */
+  payable: number;
+  /** what the driver owes the company right now (0 if nothing) */
+  owes: number;
+  /** unpaid amounts by month, oldest first (FIFO: money paid out settles the oldest month first) */
+  byMonth: { month: string; amount: number }[];
+  /** unpaid from months before `current` */
+  carried: { month: string; amount: number }[];
+  carriedTotal: number;
+}
+
+/**
+ * Splits the balance into the months it comes from.
+ * Credits (salary, incentive, own-pocket expenses, money paid back) create an amount owed for their month;
+ * debits (payments, advances, fines, deductions) settle the oldest unpaid month first.
+ */
+export function salaryDues(acc: Account, current = new Date().toISOString().slice(0, 7)): Dues {
+  const queue: { month: string; cents: number }[] = [];
+  let debt = 0; // cents the driver owes
+  for (const l of acc.lines) {
+    if (l.sign === 0) continue;
+    let c = toCents(l.amount);
+    if (l.sign > 0) {
+      const pay = Math.min(debt, c);
+      debt -= pay;
+      c -= pay;
+      if (c > 0) {
+        const last = queue[queue.length - 1];
+        if (last && last.month === l.month) last.cents += c;
+        else queue.push({ month: l.month, cents: c });
+      }
+    } else {
+      while (c > 0 && queue.length) {
+        const take = Math.min(queue[0].cents, c);
+        queue[0].cents -= take;
+        c -= take;
+        if (!queue[0].cents) queue.shift();
+      }
+      debt += c;
+    }
+  }
+  const byMonth = queue.filter((q) => q.cents > 0).sort((a, b) => a.month.localeCompare(b.month)).map((q) => ({ month: q.month, amount: fromCents(q.cents) }));
+  const carried = byMonth.filter((m) => m.month < current);
+  return {
+    payable: fromCents(queue.reduce((s, q) => s + q.cents, 0)),
+    owes: fromCents(debt),
+    byMonth,
+    carried,
+    carriedTotal: fromCents(carried.reduce((s, m) => s + toCents(m.amount), 0)),
+  };
+}
+
+/** "Includes unpaid salary of September 2026 (SAR 500)" */
+export function carriedNote(dues: Dues, fmt: (n: number) => string) {
+  if (!dues.carried.length) return '';
+  return `Includes unpaid from ${dues.carried.map((m) => `${monthLabel(m.month)} (${fmt(m.amount)})`).join(', ')}`;
+}
+
+/** Salary time: from the 25th of the month until the 5th of the next. Returns the salary month to pay, or null. */
+export function salaryTimeMonth(now = new Date()): string | null {
+  const day = now.getDate();
+  const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (day >= 25) return ym(now);
+  if (day <= 5) return ym(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  return null;
+}

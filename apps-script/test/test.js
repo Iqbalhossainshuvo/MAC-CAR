@@ -172,4 +172,17 @@ r=call({action:'save',token:N,table:'car_documents',row:{car_id:car,doc_type:'In
 r=call({action:'saveUser',token:A5,user:{id:mgr,active:false}});ok(!call({action:'data',token:MT}).ok,'deactivated manager blocked');
 }
 
+// --- salary structure
+{
+const A6=call({action:'login',username:'admin',password:'123456'}).data.token;
+const rah=call({action:'data',token:A6}).data.profiles.find(p=>p.username==='rahim');
+r=call({action:'saveUser',token:A6,user:{id:rah.id,basic_salary:2000,food_allowance:'300.25',housing_allowance:500}});
+ok(r.ok&&r.data.monthly_salary===2800.25&&r.data.food_allowance===300.25,'monthly salary = basic + food + housing');
+r=call({action:'saveUser',token:A6,user:{id:rah.id,housing_allowance:null}});ok(r.ok&&r.data.monthly_salary===2300.25,'total follows changes');
+const R6=call({action:'login',username:'rahim',password:'driver1'}).data.token;
+const me=call({action:'data',token:R6}).data.me;ok(me.basic_salary===2000&&me.food_allowance===300.25,'driver sees own salary structure');
+r=call({action:'saveUser',token:R6,user:{id:rah.id,basic_salary:99999}});ok(r.ok&&r.data.basic_salary===2000,'driver cannot change salary');
+r=call({action:'saveUser',token:A6,user:{username:'newbie',full_name:'New Bie',password:'123456',role:'driver',basic_salary:1500,food_allowance:200}});ok(r.ok&&r.data.monthly_salary===1700,'new driver total computed');
+}
+
 console.log(fails?fails+' FAILED':'ALL PASSED');

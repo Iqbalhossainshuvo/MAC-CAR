@@ -31,7 +31,7 @@ import {
 } from '@/components/ui';
 import { saveRow, useFleet } from '@/lib/data';
 import { carName, expiryLevel, expiryText, fmtDate, fromCents, money, personName, toCents, today } from '@/lib/format';
-import { driverCost } from '@/lib/payroll';
+import { driverAccount, driverCost, monthLabel, salaryDues, salaryTimeMonth } from '@/lib/payroll';
 import { useAuth } from '@/lib/auth';
 import { usePerm } from '@/lib/perms';
 import { carMoney, currentAssignment, expenseByCategory, expiryAlerts, lastMonths, money as sumMoney, PERIOD_LABEL, periodRange, type Period } from '@/lib/stats';
@@ -90,6 +90,17 @@ export default function Dashboard() {
     if (await saveRow('expenses', { id, status })) reload();
   };
 
+  // month-end salary reminder (25th → 5th of next month)
+  const payMonth = perm.can('salary') ? salaryTimeMonth() : null;
+  const payInfo = payMonth
+    ? (() => {
+        const active = d.profiles.filter((p) => p.role === 'driver' && p.active);
+        const notAdded = active.filter((p) => (p.monthly_salary ?? 0) > 0 && !d.payroll.some((x) => x.driver_id === p.id && x.type === 'salary' && x.month === payMonth));
+        const due = active.map((p) => salaryDues(driverAccount(d, p.id)).payable).filter((x) => x > 0);
+        return { notAdded: notAdded.length, toPay: due.length, total: fromCents(due.reduce((c, x) => c + toCents(x), 0)) };
+      })()
+    : null;
+
   const docsOk = d.docs.length ? d.docs.filter((x) => expiryLevel(x.expiry_date) === 'ok').length / d.docs.length : 1;
   const onRoad = d.cars.length ? stats.activeCars / d.cars.length : 0;
   const assigned = stats.activeCars ? (stats.activeCars - stats.unassigned) / stats.activeCars : 0;
@@ -102,7 +113,7 @@ export default function Dashboard() {
         subtitle="Here is how your fleet is doing."
         onMenu={wide ? undefined : () => (navigation as any).openDrawer?.()}
         onBell={() => router.push(stats.pending.length && canApprove ? '/admin/expenses' : perm.can('cars') ? '/admin/cars' : '/admin')}
-        bellDot={(canApprove ? stats.pending.length : 0) + stats.alerts.length > 0}
+        bellDot={(canApprove ? stats.pending.length : 0) + stats.alerts.length > 0 || !!(payInfo && (payInfo.notAdded || payInfo.toPay))}
       />
       {error ? <ErrorBox message={error} onRetry={reload} /> : null}
 
@@ -118,6 +129,24 @@ export default function Dashboard() {
           sub={canApprove ? `${stats.alerts.length} expiring · ${stats.pending.length} to approve` : `${stats.alerts.length} expiring`}
         />
       </StatGrid>
+
+      {payMonth && payInfo && (payInfo.notAdded || payInfo.toPay) ? (
+        <Pressable onPress={() => router.push('/admin/salary')} accessibilityRole="button" accessibilityLabel="Open salary">
+          <Card accent={C.amber}>
+            <Row style={{ gap: 12 }}>
+              <IconTile icon="alarm" color={C.amber} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 16 }}>Salary time · {monthLabel(payMonth)}</Text>
+                <Text style={{ color: C.muted, fontFamily: F.regular, marginTop: 3, lineHeight: 19 }}>
+                  {payInfo.notAdded ? `${payInfo.notAdded} driver(s) need this month's salary added. ` : ''}
+                  {payInfo.toPay ? `${payInfo.toPay} driver(s) to pay · ${money(payInfo.total)}` : ''}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={C.primary} />
+            </Row>
+          </Card>
+        </Pressable>
+      ) : null}
 
       {money$ ? (
         <>

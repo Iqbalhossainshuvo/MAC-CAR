@@ -27,7 +27,7 @@ import {
 } from '@/components/ui';
 import { confirm, notify, saveRow, useFleet } from '@/lib/data';
 import { fmtDate, fromCents, money, personName, toCents, today } from '@/lib/format';
-import { driverAccount, LINE_LABEL, monthLabel, monthLastDay, recentMonths, type AccountLine } from '@/lib/payroll';
+import { carriedNote, driverAccount, LINE_LABEL, monthLabel, monthLastDay, recentMonths, salaryDues, salaryPartsText, salaryTimeMonth, type AccountLine } from '@/lib/payroll';
 import { usePerm } from '@/lib/perms';
 
 const ALL = 'all';
@@ -60,7 +60,8 @@ export default function Salary() {
         const m = all ? { ...acc.totals, closing: acc.balance } : acc.months.find((x) => x.month === month);
         const lines = all ? acc.lines : acc.lines.filter((l) => l.month === month);
         const salaryAdded = !all && d.payroll.some((x) => x.driver_id === p.id && x.type === 'salary' && x.month === month);
-        return { p, acc, m, lines, salaryAdded };
+        const dues = salaryDues(acc);
+        return { p, acc, m, lines, salaryAdded, dues };
       })
       .sort((a, b) => Number(b.p.active) - Number(a.p.active) || personName(a.p).localeCompare(personName(b.p)));
   }, [d, drivers, month, all]);
@@ -95,6 +96,12 @@ export default function Salary() {
     .flatMap((r) => r.lines.map((l) => ({ ...l, who: personName(r.p), driverId: r.p.id })))
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  // month-end reminder (from the 25th until the 5th of the next month)
+  const payMonth = salaryTimeMonth();
+  const toPay = rows.filter((r) => r.p.active && r.dues.payable > 0);
+  const payMonthMissing = payMonth ? rows.filter((r) => r.p.active && (r.p.monthly_salary ?? 0) > 0 && !d.payroll.some((x) => x.driver_id === r.p.id && x.type === 'salary' && x.month === payMonth)) : [];
+  const totalPayable = fromCents(toPay.reduce((c, r) => c + toCents(r.dues.payable), 0));
+
   const idx = monthOptions.findIndex((o) => o.value === month);
   const step = (dir: -1 | 1) => {
     const next = monthOptions[idx + dir];
@@ -112,7 +119,7 @@ export default function Salary() {
     if (!ok) return;
     const date = monthLastDay(month) > today() ? today() : monthLastDay(month);
     for (const r of missing) {
-      await saveRow('payroll', { driver_id: r.p.id, type: 'salary', month, amount: r.p.monthly_salary, entry_date: date, description: 'Monthly salary' });
+      await saveRow('payroll', { driver_id: r.p.id, type: 'salary', month, amount: r.p.monthly_salary, entry_date: date, description: salaryPartsText(r.p) || 'Monthly salary' });
     }
     notify('Salaries added', `${missing.length} salary entries are being saved.`);
   };
@@ -148,6 +155,22 @@ export default function Salary() {
         />
       </Card>
 
+      {payMonth && (toPay.length || payMonthMissing.length) ? (
+        <Card accent={C.amber}>
+          <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+            <IconTile icon="alarm" color={C.amber} size={40} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 16 }}>Salary time · {monthLabel(payMonth)}</Text>
+              <Text style={{ color: C.muted, fontFamily: F.regular, marginTop: 4, lineHeight: 20 }}>
+                {payMonthMissing.length ? `${payMonthMissing.length} driver(s) still need ${monthLabel(payMonth)} salary added. ` : ''}
+                {toPay.length ? `${toPay.length} driver(s) to pay, total ${money(totalPayable)} (includes any unpaid balance from earlier months).` : ''}
+              </Text>
+              {month !== payMonth ? <Button small variant="light" title={`Show ${monthLabel(payMonth)}`} style={{ marginTop: 10, alignSelf: 'flex-start' }} onPress={() => setMonth(payMonth)} /> : null}
+            </View>
+          </Row>
+        </Card>
+      ) : null}
+
       <StatGrid>
         <StatCard compact label="Salaries" value={money(totals.salary)} icon="wallet" tone="green" sub={period} />
         <StatCard compact label="Incentives" value={money(totals.bonus)} icon="gift" tone="magenta" sub={period} />
@@ -179,7 +202,7 @@ export default function Salary() {
 
       <ListCard title={`Drivers · ${shown.length}`}>
         {shown.length ? (
-          shown.map(({ p, acc, m, salaryAdded, lines }) => (
+          shown.map(({ p, acc, m, salaryAdded, lines, dues }) => (
             <ListItem
               key={p.id}
               onPress={() => router.push(`/admin/driver/${p.id}`)}
@@ -189,6 +212,7 @@ export default function Salary() {
                 <View style={{ marginTop: 3, gap: 5 }}>
                   <Text style={{ color: C.muted, fontSize: 12, fontFamily: F.regular }}>
                     Monthly {p.monthly_salary ? money(p.monthly_salary) : 'not set'}
+                    {salaryPartsText(p) ? ` (${salaryPartsText(p)})` : ''}
                     {m
                       ? ` · Salary ${money(m.salary)} · Advance ${money(m.advances)} · Fines ${money(m.fines)} · Paid ${money(m.paid)}`
                       : ` · No entries in ${period}`}
@@ -199,6 +223,9 @@ export default function Salary() {
                     {lines.length ? <Badge text={`${lines.length} entries`} tone="blue" /> : null}
                     {!p.active ? <Badge text="Inactive" tone="gray" /> : null}
                   </Row>
+                  {dues.carried.length ? (
+                    <Text style={{ color: C.amber, fontSize: 11, fontFamily: F.semi }}>{carriedNote(dues, money)}</Text>
+                  ) : null}
                 </View>
               }
               right={
