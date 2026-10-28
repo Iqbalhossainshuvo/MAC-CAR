@@ -30,9 +30,9 @@ import { permsSummary, usePerm } from '@/lib/perms';
 import type { Profile } from '@/lib/types';
 import { NoAccess } from '@/components/NoAccess';
 
-type Filter = 'all' | 'admin' | 'manager' | 'driver' | 'inactive';
+type Filter = 'all' | 'admin' | 'manager' | 'driver' | 'partner' | 'inactive';
 
-const ROLE_LABEL: Record<string, string> = { admin: 'Admin', manager: 'Manager', driver: 'Driver' };
+const ROLE_LABEL: Record<string, string> = { admin: 'Admin', manager: 'Manager', driver: 'Driver', partner: 'Partner' };
 
 export default function Users() {
   const { user: me } = useAuth();
@@ -77,7 +77,9 @@ export default function Users() {
               <Text style={{ color: C.amber, fontFamily: F.monoBold }}>Manager</Text> is your assistant: they get only what you tick when you create or
               edit them (for example cars, expenses, approving, salary). They can never change admins or give anyone more access.{'\n'}
               <Text style={{ color: C.primary, fontFamily: F.monoBold }}>Driver</Text> sees only their own profile and car, and adds their daily work and
-              expenses (you approve them).
+              expenses (you approve them).{'\n'}
+              <Text style={{ color: C.blue, fontFamily: F.monoBold }}>Partner</Text> (share holder) sees only the cars he shares, their profit or loss, and his
+              wallet.
             </Text>
           ) : (
             <Text style={{ color: C.text, lineHeight: 20 }}>You can add driver logins, reset driver passwords and activate or deactivate drivers.</Text>
@@ -85,7 +87,7 @@ export default function Users() {
         </Card>
         <SearchBar value={q} onChange={setQ} placeholder="Search users…" />
         {perm.admin ? (
-          <Chips<Filter> options={['all', 'admin', 'manager', 'driver', 'inactive']} value={filter} onChange={setFilter} />
+          <Chips<Filter> options={['all', 'admin', 'manager', 'driver', 'partner', 'inactive']} value={filter} onChange={setFilter} />
         ) : null}
         <View style={{ height: 8 }} />
 
@@ -98,12 +100,18 @@ export default function Users() {
                   key={p.id}
                   left={
                     <IconTile
-                      icon={p.role === 'admin' ? 'shield-checkmark' : p.role === 'manager' ? 'briefcase' : 'person'}
+                      icon={p.role === 'admin' ? 'shield-checkmark' : p.role === 'manager' ? 'briefcase' : p.role === 'partner' ? 'pie-chart' : 'person'}
                       color={p.active ? (p.role === 'admin' ? C.magenta : p.role === 'manager' ? C.amber : C.primary) : C.gray}
                     />
                   }
                   title={`${personName(p)}${self ? ' (you)' : ''}`}
-                  onPress={p.role === 'driver' && (perm.can('drivers') || perm.can('salary')) ? () => router.push(`/admin/driver/${p.id}`) : undefined}
+                  onPress={
+                    p.role === 'driver' && (perm.can('drivers') || perm.can('salary'))
+                      ? () => router.push(`/admin/driver/${p.id}`)
+                      : p.role === 'partner' && perm.can('partners')
+                        ? () => router.push(`/admin/partner/${p.id}`)
+                        : undefined
+                  }
                   subtitle={
                     <View style={{ gap: 5, marginTop: 3 }}>
                       <Text style={{ color: C.muted, fontSize: 12 }}>

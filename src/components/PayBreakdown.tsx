@@ -50,7 +50,7 @@ export function PayBreakdown({ d, driver, acc, admin, canWaive }: { d: FleetData
   // entered but not approved yet: shown, not counted
   const waiting = d.expenses.filter((e) => e.driver_id === driver.id && e.status === 'pending' && e.expense_date.slice(0, 7) === month);
   const waitOwn = fromCents(waiting.filter((e) => e.category !== 'fine' && e.paid_by === 'driver').reduce((c, e) => c + toCents(e.amount), 0));
-  const waitFine = fromCents(waiting.filter((e) => e.category === 'fine' && e.paid_by === 'company').reduce((c, e) => c + toCents(e.amount), 0));
+  const waitFine = fromCents(waiting.filter((e) => e.category === 'fine' && (e.paid_by === 'company' || e.paid_by === 'cash')).reduce((c, e) => c + toCents(e.amount), 0));
 
   const you = admin ? '' : ' (you)';
   return (
@@ -68,6 +68,8 @@ export function PayBreakdown({ d, driver, acc, admin, canWaive }: { d: FleetData
           sub={own.length ? own.map((l) => `${fmtDate(l.date)} ${l.expense ? CATEGORY_LABEL[l.expense.category] : ''} ${money(l.amount)}`).join(' · ') : undefined}
         />
         <Line label="Paid back to company" value={m?.refunds ?? 0} sign={1} />
+        <Line label="Company cash overspent (added)" value={m?.cashIn ?? 0} sign={1} sub="Spent more than the company cash given, paid back here" />
+        <Line label="Company cash kept (taken)" value={m?.cashOut ?? 0} sign={-1} sub="Unused company cash not returned" />
         <Line label="Fines (violations)" value={m?.fines ?? 0} sign={-1} sub={fines.some((f) => f.sign === 0) ? 'Waived fines are not taken' : undefined} />
         <Line label="Cash advance" value={m?.advances ?? 0} sign={-1} />
         <Line label="Other deductions" value={m?.deductions ?? 0} sign={-1} />

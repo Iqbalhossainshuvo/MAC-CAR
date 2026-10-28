@@ -43,3 +43,4 @@ yarn-error.*
 # Supabase keys
 .env
 .test-build/
+.money-test/

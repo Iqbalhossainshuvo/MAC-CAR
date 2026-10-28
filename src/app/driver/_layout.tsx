@@ -40,6 +40,7 @@ export default function DriverLayout() {
   const insets = useSafeAreaInsets();
   if (loading) return <Loading />;
   if (!user) return <Redirect href="/login" />;
+  if (user.role === 'partner') return <Redirect href="/partner" />;
   if (user.role === 'admin' || user.role === 'manager') return <Redirect href="/admin" />;
 
   return (

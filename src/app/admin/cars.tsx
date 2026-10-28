@@ -91,6 +91,7 @@ export default function Cars() {
                     </Text>
                   </View>
                   <Badge text={car.status} tone={statusTone(car.status)} />
+                  {car.ownership === 'rented' ? <Badge text="Rented" tone="blue" /> : car.ownership === 'shared' ? <Badge text="Shared" tone="magenta" /> : null}
                 </Row>
 
                 <View style={{ marginTop: 12, gap: 6 }}>

@@ -12,7 +12,7 @@ const ctx={console,JSON,Date,Math,String,Number,Object,Array,isNaN,encodeURIComp
  SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null,insertSheet:n=>(sheets[n]=mkSheet(n))}),flush(){}},
  Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},
   computeDigest:(a,v)=>Array.from(crypto.createHash('sha256').update(typeof v==='string'?Buffer.from(v):Buffer.from(v.map(b=>b&255))).digest()).map(b=>b>127?b-256:b),
-  newBlob:(x,type,name)=>({getBytes:()=>Array.isArray(x)?x:Array.from(Buffer.from(x)),getDataAsString:()=>Buffer.from(x.map?x.map(b=>b&255):x).toString(),getContentType:()=>type,getName:()=>name}),
+  newBlob:function mkBlob(x,type,name){const bl={getBytes:()=>Array.isArray(x)?x:Array.from(Buffer.from(x)),getDataAsString:()=>Buffer.from(x.map?x.map(b=>b&255):x).toString(),getContentType:()=>type,getName:()=>name,setName(n){name=n;return bl},getAs:(t)=>mkBlob(x,t,name)};return bl},
   base64Decode:s=>Array.from(Buffer.from(s,'base64')).map(b=>b>127?b-256:b),
   base64Encode:b=>Buffer.from(b.map(x=>x&255)).toString('base64'),
   base64EncodeWebSafe:b=>(typeof b==='string'?Buffer.from(b):Buffer.from(b.map(x=>x&255))).toString('base64').replace(/\+/g,'-').replace(/\//g,'_'),
@@ -27,7 +27,9 @@ const ctx={console,JSON,Date,Math,String,Number,Object,Array,isNaN,encodeURIComp
  DriveApp:(()=>{const files={};let n=0;const mkFile=(blob)=>{const id='f'+(++n);const f={id,blob,trashed:false,name:blob.getName?blob.getName():'file',getId:()=>id,setTrashed(t){f.trashed=t},getBlob:()=>blob,getName:()=>f.name,setName(n){f.name=n}};files[id]=f;return f};
   const folder={getId:()=>'folder1',isTrashed:()=>false,createFile:(b)=>mkFile(b)};
   return {_files:files,createFolder:()=>folder,getFolderById:()=>folder,getFileById:(id)=>{if(!files[id])throw new Error('no file');return files[id]}}})(),
- UrlFetchApp:{fetch:()=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify(ctx._google)})},_google:{}};
+ UrlFetchApp:{fetch:(url,opt)=>{if(ctx._fetch)return ctx._fetch(url,opt);return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(ctx._google)}}},_google:{},
+ ScriptApp:{_t:[],getProjectTriggers(){return this._t},deleteTrigger(t){this._t=this._t.filter(x=>x!==t)},newTrigger(h){const S=this;const t={h,getHandlerFunction:()=>h};const b={timeBased:()=>b,atHour:(x)=>{t.hour=x;return b},everyDays:()=>b,inTimezone:()=>b,create:()=>{S._t.push(t);return t}};return b}},
+ Charts:{ColumnType:{STRING:'s'},newDataTable(){const d={rows:[],addColumn:()=>d,addRow:(r)=>{d.rows.push(r);return d},build:()=>d};return d},newTableChart(){const c={setDataTable:()=>c,setDimensions:()=>c,build:()=>({getAs:(t)=>ctx.Utilities.newBlob('png',t,'chart')})};return c}}};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),ctx);
 const call=(b)=>{ctx._cache={};vm.runInContext('_cache={}',ctx);const r=JSON.parse(ctx.doPost({postData:{contents:JSON.stringify(b)}}));return r};
 module.exports={ctx,call,sheets};

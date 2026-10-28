@@ -22,6 +22,8 @@ const ICON: Record<LineKind, IconName> = {
   refund: 'return-down-back',
   reimbursement: 'receipt-outline',
   fine: 'alert-circle',
+  cash_kept: 'cash-outline',
+  cash_overspent: 'cash',
 };
 
 const COLOR: Record<LineKind, string> = {
@@ -33,6 +35,8 @@ const COLOR: Record<LineKind, string> = {
   refund: C.green,
   reimbursement: C.blue,
   fine: C.red,
+  cash_kept: C.amber,
+  cash_overspent: C.blue,
 };
 
 function signed(l: AccountLine) {

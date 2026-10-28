@@ -33,6 +33,7 @@ import { ALL_PARTS, reportSpec, runReport } from '@/lib/reports';
 import { counted, currentAssignment } from '@/lib/stats';
 import { expenseRowProps, usePerm } from '@/lib/perms';
 import { NoAccess } from '@/components/NoAccess';
+import { CashAccount } from '@/components/CashAccount';
 
 export default function DriverDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -141,6 +142,7 @@ export default function DriverDetails() {
         <>
           <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginBottom: 10 }}>Salary & account</Text>
           <SalaryAccount d={d} driver={p} admin open={form.open} reload={reload} />
+          <CashAccount d={d} driver={p} admin={perm.can('salary', 'edit')} open={form.open} reload={reload} />
         </>
       ) : null}
 

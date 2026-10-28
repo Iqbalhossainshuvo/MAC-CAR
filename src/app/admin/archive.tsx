@@ -25,7 +25,9 @@ interface Item {
 /** permission area of an archived row (same rule as the server) */
 function areaOf(i: Item): Area {
   if (i.table === 'car_documents') return i.carDoc ? 'cars' : 'drivers';
-  return ({ cars: 'cars', assignments: 'cars', daily_logs: 'drivers', incomes: 'income', expenses: 'expenses', payroll: 'salary' } as const)[i.table];
+  return (
+    { cars: 'cars', assignments: 'cars', daily_logs: 'drivers', incomes: 'income', expenses: 'expenses', payroll: 'salary', cash: 'salary', car_shares: 'partners', partner_ledger: 'partners' } as const
+  )[i.table];
 }
 
 const KIND_LABEL: Record<Kind, string> = {
@@ -37,6 +39,9 @@ const KIND_LABEL: Record<Kind, string> = {
   car_documents: 'Documents',
   assignments: 'Assignments',
   daily_logs: 'Daily reports',
+  cash: 'Company cash',
+  car_shares: 'Car shares',
+  partner_ledger: 'Partner payouts',
 };
 
 /** Everything that was "deleted": hidden in the app, still in the Google Sheet, can be restored. */
@@ -61,7 +66,7 @@ export default function Archive() {
         </Text>
       </Card>
       <Chips<Kind>
-        options={['all', 'expenses', 'incomes', 'payroll', 'cars', 'car_documents', 'assignments', 'daily_logs']}
+        options={['all', 'expenses', 'incomes', 'payroll', 'cash', 'cars', 'car_documents', 'assignments', 'daily_logs', 'car_shares', 'partner_ledger']}
         value={kind}
         onChange={setKind}
         labels={Object.fromEntries(
@@ -117,5 +122,8 @@ function collect(d: FleetData, cars: Map<string, any>, people: Map<string, any>)
   for (const a of d.assignments)
     push('assignments', a, 'swap-horizontal', `${by(a.driver_id)} → ${car(a.car_id)}`, `${fmtDate(a.start_date)} → ${a.end_date ? fmtDate(a.end_date) : 'now'}`);
   for (const l of d.logs) push('daily_logs', l, 'clipboard-outline', `Daily report · ${fmtDate(l.log_date)}`, [car(l.car_id), by(l.driver_id)].filter(Boolean).join(' · '));
+  for (const c of d.cash ?? []) push('cash', c, 'cash-outline', `Company cash · ${c.type.replace('_', ' ')} · ${money(c.amount)}`, [fmtDate(c.entry_date), by(c.driver_id), c.description].filter(Boolean).join(' · '));
+  for (const s of d.shares ?? []) push('car_shares', s, 'pie-chart-outline', `${by(s.partner_id) || s.partner_name || 'Partner'} · ${s.share_percent}%`, `${car(s.car_id)} · from ${fmtDate(s.start_date)}`);
+  for (const p of d.partnerLedger ?? []) push('partner_ledger', p, 'wallet-outline', `Partner ${p.type.replace('_', ' ')} · ${money(p.amount)}`, [fmtDate(p.entry_date), by(p.partner_id), p.description].filter(Boolean).join(' · '));
   return out.sort((a, b) => b.at.localeCompare(a.at));
 }

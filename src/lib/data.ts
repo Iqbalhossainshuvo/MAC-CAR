@@ -5,7 +5,7 @@ import { Alert, AppState, Platform } from 'react-native';
 
 import { api, ApiError } from './api';
 import { useAuth } from './auth';
-import type { Assignment, Car, CarDocument, DailyLog, Expense, Income, PayEntry, Profile } from './types';
+import type { Assignment, Car, CarDocument, CarShare, CashEntry, DailyLog, Expense, Income, PartnerEntry, PayEntry, Profile } from './types';
 
 /*
  * Local-first data store
@@ -19,7 +19,7 @@ import type { Assignment, Car, CarDocument, DailyLog, Expense, Income, PayEntry,
  *   is offline, the outbox waits and retries; it survives app restarts.
  */
 
-export type Table = 'cars' | 'car_documents' | 'assignments' | 'incomes' | 'expenses' | 'daily_logs' | 'payroll';
+export type Table = 'cars' | 'car_documents' | 'assignments' | 'incomes' | 'expenses' | 'daily_logs' | 'payroll' | 'cash' | 'car_shares' | 'partner_ledger';
 
 export interface FleetData {
   me: Profile | null;
@@ -31,6 +31,12 @@ export interface FleetData {
   expenses: Expense[];
   logs: DailyLog[];
   payroll: PayEntry[];
+  /** company cash given to drivers for car work */
+  cash: CashEntry[];
+  /** partners' shares in cars */
+  shares: CarShare[];
+  /** payouts / corrections of partners' wallets */
+  partnerLedger: PartnerEntry[];
 }
 
 export const EMPTY_FLEET: FleetData = {
@@ -43,6 +49,9 @@ export const EMPTY_FLEET: FleetData = {
   expenses: [],
   logs: [],
   payroll: [],
+  cash: [],
+  shares: [],
+  partnerLedger: [],
 };
 
 type ListKey = Exclude<keyof FleetData, 'me'>;
@@ -54,6 +63,9 @@ const LIST_OF: Record<Table, ListKey> = {
   expenses: 'expenses',
   daily_logs: 'logs',
   payroll: 'payroll',
+  cash: 'cash',
+  car_shares: 'shares',
+  partner_ledger: 'partnerLedger',
 };
 
 const byDesc = <T>(key: keyof T) => (a: T, b: T) => String(b[key] ?? '').localeCompare(String(a[key] ?? ''));
@@ -69,6 +81,9 @@ function sortFleet(d: FleetData): FleetData {
     expenses: [...d.expenses].sort(byDesc<Expense>('expense_date')),
     logs: [...d.logs].sort(byDesc<DailyLog>('log_date')),
     payroll: [...(d.payroll ?? [])].sort(byDesc<PayEntry>('entry_date')),
+    cash: [...(d.cash ?? [])].sort(byDesc<CashEntry>('entry_date')),
+    shares: [...(d.shares ?? [])].sort(byDesc<CarShare>('start_date')),
+    partnerLedger: [...(d.partnerLedger ?? [])].sort(byDesc<PartnerEntry>('entry_date')),
   };
 }
 
@@ -228,7 +243,7 @@ function swapId(tempId: string, realId: string) {
   const fix = <T extends Record<string, any>>(r: T): T => {
     let changed = false;
     const o: Record<string, any> = { ...r };
-    for (const k of ['id', 'car_id', 'driver_id']) {
+    for (const k of ['id', 'car_id', 'driver_id', 'partner_id']) {
       if (o[k] === tempId) {
         o[k] = realId;
         changed = true;
@@ -244,6 +259,10 @@ function swapId(tempId: string, realId: string) {
     incomes: state.incomes.map(fix),
     expenses: state.expenses.map(fix),
     logs: state.logs.map(fix),
+    payroll: state.payroll.map(fix),
+    cash: state.cash.map(fix),
+    shares: state.shares.map(fix),
+    partnerLedger: state.partnerLedger.map(fix),
   };
 }
 
@@ -347,6 +366,9 @@ export function withoutArchived(d: FleetData): FleetData {
     expenses: live(d.expenses),
     logs: live(d.logs),
     payroll: live(d.payroll),
+    cash: live(d.cash ?? []),
+    shares: ofLiveCar(live(d.shares ?? [])),
+    partnerLedger: live(d.partnerLedger ?? []),
   };
 }
 

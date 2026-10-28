@@ -48,6 +48,31 @@
 - প্রতি মাসের **২৫ তারিখ থেকে পরের মাসের ৫ তারিখ** পর্যন্ত Admin-এর Dashboard ও Salary পেজে **Salary time** কার্ড আসে: কার বেতন যোগ হয়নি, কাকে কত দিতে হবে।
 - কম টাকা দিলে বাকিটা পরের মাসে যোগ হয়ে মোট দেখায়, নিচে ছোট করে লেখা থাকে: "Includes unpaid from September 2026 (SAR 500)"। টাকা দিলে আগে পুরনো মাসের বকেয়া শোধ হয়।
 
+### গাড়ির কাজের জন্য কোম্পানির টাকা (Company cash)
+- Driver পেজে **Company cash for car work** → **Give cash** দিয়ে ড্রাইভারকে টাকা দিন। এটা বেতন থেকে আলাদা থাকে।
+- ড্রাইভার খরচ দেওয়ার সময় "Paid from" বাছাই করেন: **Company cash I hold / My own money / Company paid directly**। কোম্পানির টাকা হাতে থাকলে নিজে থেকেই **Company cash** বাছাই থাকে; কিছু না বাছালেও সার্ভার সেটাই ধরে।
+- Company cash থেকে খরচ হলে ব্যালেন্স কমে; বেশি খরচ করলে ব্যালেন্স মাইনাস = কোম্পানি তাকে দেবে।
+- **Returned** (বাকি টাকা ফেরত), **Take from salary** (টাকা রেখে দিলে বেতন থেকে কাটা) বা **Add to salary** (বেশি খরচ বেতনে যোগ) — এক চাপে হিসাব শূন্য।
+- Company cash দিয়ে জরিমানা দিলে, approve হলে বেতন থেকে কাটা যায় (মাফ করা যায়)।
+
+### ভাড়ার গাড়ি ও শেয়ারের গাড়ি, Partner
+- গাড়ি Add/Edit-এ **Ownership**: Company car / **Rented from someone** (মালিক, ফোন, মাসিক ভাড়া, সময়) / **Shared with partners**।
+- ভাড়ার গাড়ির পেজে এই মাসের ভাড়া যোগ হয়েছে কিনা দেখায়, এক চাপে "Car rent" খরচ যোগ হয়। লাভ ভাড়া বাদ দিয়ে দেখায়।
+- User → Add user → Role **Partner (share holder)**। তারপর শেয়ারের গাড়ির পেজে **Partners → Add**: Partner, **Share %**, **Company management fee %** (ঐচ্ছিক), তারিখ। এক গাড়িতে মোট ১০০%-এর বেশি দেওয়া যায় না।
+- প্রতি মাসে: গাড়ির লাভ = আয় − approved খরচ। Fee বাদে Partner পান তার %। গাড়ির পেজে মাসওয়ারি ভাগ (Partner কত, কোম্পানি কত)।
+- **Partners** মেনু: সবার Wallet। Partner পেজে **Pay partner** (দিলে Wallet কমে, পুরো দিলে 0), Add/Take (সংশোধন)। বাকি থাকলে পরের মাসে যোগ হয়ে দেখায়, নিচে লেখা থাকে কোন মাসের কত।
+- Partner লগিন করলে শুধু তার গাড়ির আয়-খরচ, লাভ-লস ও Wallet দেখেন; ড্রাইভারের তথ্য দেখেন না।
+- Dashboard-এর কোম্পানির Net profit থেকে Partner-দের ভাগ বাদ দেওয়া হয়।
+
+### প্রতিদিনের রিপোর্ট WhatsApp-এ (অটোমেটিক)
+Admin → **Settings**: নাম্বারগুলো, সময়, কী কী যাবে (Summary, Daily reports, রিপোর্ট না দেওয়া গাড়ি, খরচ, আয়, Approve বাকি, ডকুমেন্টের মেয়াদ, Company cash, বেতন), **PDF বা Picture** বাছাই করে Save। **Send report now** দিয়ে পরীক্ষা করুন।
+এটা Meta-র অফিসিয়াল **WhatsApp Business Cloud API** দিয়ে যায়, একবার সেটআপ লাগে (Settings পেজের নিচে ধাপগুলো লেখা আছে):
+1. developers.facebook.com → Create app (Business) → WhatsApp যোগ করুন, কোম্পানির নাম্বার যোগ ও verify করুন → **Phone number ID** কপি।
+2. Business Settings → System users → Admin user → token তৈরি (whatsapp_business_messaging, whatsapp_business_management) → **Access token** কপি।
+3. WhatsApp Manager → Message templates → Utility template (যেমন `daily_report`), Header = Document (Picture হলে Image), Body-তে একটা ভ্যারিয়েবল `{{1}}` → approve হওয়া পর্যন্ত অপেক্ষা।
+4. Settings-এ token, Phone number ID, template নাম দিন। Template ছাড়া মেসেজ শুধু তখনই যায় যদি ঐ নাম্বার গত ২৪ ঘণ্টায় কোম্পানির নাম্বারে মেসেজ দিয়ে থাকে।
+> Picture অপশনে রিপোর্টের সারাংশ টেবিল ছবি হিসেবে যায়; ছবি তৈরি না হলে নিজে থেকে PDF পাঠায় এবং Settings-এ তা লেখা থাকে।
+
 ### ডকুমেন্ট ফাইল
 
 প্রতিটি ডকুমেন্টে (গাড়ির Istimara/Insurance/Fahas বা ড্রাইভারের Iqama/License/Passport) ফাইল **আপলোড, ক্যামেরায় ছবি, দেখা, ডাউনলোড, বদলানো ও মুছা** যায়। ফাইল Admin-এর Google Drive-এর **MAC CAR Files** ফোল্ডারে থাকে (সর্বোচ্চ ১০ MB, PDF বা ছবি)।
@@ -83,6 +108,9 @@ Manager যেটা পাননি সেটা মেনুতেই দে�
 
 ---
 
+### টাকার হিসাব যাচাই
+`npm run test:money` হাজার হাজার এলোমেলো হিসাব (বেতন, Company cash, Partner ভাগ, বকেয়া) বানিয়ে প্রতিটা যোগফল আলাদাভাবে মিলিয়ে দেখে। `node apps-script/test/test.js apps-script/Code.gs` সার্ভারের নিয়ম পরীক্ষা করে।
+
 ## কীভাবে কাজ করে
 
 ```
@@ -115,7 +143,7 @@ Manager যেটা পাননি সেটা মেনুতেই দে�
 
 > 🔑 **পাসওয়ার্ড ভুলে গেলে বা নিজের পাসওয়ার্ড দিতে চাইলে (সবচেয়ে সহজ):** Google Sheet-এর **Users** ট্যাবে `set_password` কলামে (কলাম না থাকলে একবার `setup` চালান) সেই ইউজারের সারিতে নতুন পাসওয়ার্ড লিখুন। পরের লগিনে সেটাই পাসওয়ার্ড হয়ে যাবে এবং ঘরটা নিজে থেকে খালি হয়ে যাবে। ড্রাইভারদের জন্যও একইভাবে কাজ করে।
 
-> 🔄 **আপডেটের পর (নতুন Code.gs পেস্ট করলে):** একবার **setup** Run করুন — নতুন ফিচারের অনুমতি (Google Drive) চাইবে, **Allow** দিন; নতুন কলাম/শিট (Payroll) নিজে থেকে যোগ হবে, পুরোনো ডাটা ঠিক থাকবে। তারপর Deploy → Manage deployments → ✏️ Edit → **New version** → Deploy।
+> 🔄 **আপডেটের পর (নতুন Code.gs পেস্ট করলে):** `appsscript.json`-ও নতুনটা পেস্ট করুন। তারপর একবার **setup** Run করুন — নতুন অনুমতি (Google Drive, অটোমেটিক সময়ে চালানো, বাইরের সার্ভিসে কানেক্ট) চাইবে, **Allow** দিন; নতুন কলাম/শিট (Payroll, CompanyCash, CarShares, PartnerWallet) নিজে থেকে যোগ হবে, পুরোনো ডাটা ঠিক থাকবে। তারপর Deploy → Manage deployments → ✏️ Edit → **New version** → Deploy।
 
 ### ধাপ ২ — Web App হিসেবে Deploy
 

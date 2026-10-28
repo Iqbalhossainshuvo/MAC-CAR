@@ -91,6 +91,7 @@ export default function AdminLayout() {
 
   if (loading) return <Loading />;
   if (!user) return <Redirect href="/login" />;
+  if (user.role === 'partner') return <Redirect href="/partner" />;
   if (user.role !== 'admin' && user.role !== 'manager') return <Redirect href="/driver" />;
 
   // managers only see the menus the admin gave them
@@ -122,6 +123,7 @@ export default function AdminLayout() {
       <Drawer.Screen name="cars" options={{ ...show(perm.can('cars')), title: 'Cars', drawerLabel: 'Car', drawerIcon: icon('car-sport') }} />
       <Drawer.Screen name="drivers" options={{ ...show(perm.can('drivers')), title: 'Drivers', drawerLabel: 'Driver', drawerIcon: icon('people') }} />
       <Drawer.Screen name="salary" options={{ ...show(perm.can('salary')), title: 'Salary', drawerLabel: 'Salary', drawerIcon: icon('wallet') }} />
+      <Drawer.Screen name="partners" options={{ ...show(perm.can('partners')), title: 'Partners', drawerLabel: 'Partners', drawerIcon: icon('pie-chart') }} />
       <Drawer.Screen name="income" options={{ ...show(perm.can('income')), title: 'Income', drawerLabel: 'Income', drawerIcon: icon('trending-up') }} />
       <Drawer.Screen name="expenses" options={{ ...show(perm.can('expenses') || perm.can('approve')), title: 'Expenses', drawerLabel: 'Expense', drawerIcon: icon('trending-down') }} />
       <Drawer.Screen name="reports" options={{ ...show(perm.can('reports')), title: 'Reports', drawerLabel: 'Report', drawerIcon: icon('document-text') }} />
@@ -131,6 +133,11 @@ export default function AdminLayout() {
         name="car/[id]"
         options={{ ...hidden, title: 'Car details', headerLeft: () => <BackButton fallback="/admin/cars" /> }}
       />
+      <Drawer.Screen
+        name="partner/[id]"
+        options={{ ...hidden, title: 'Partner', headerLeft: () => <BackButton fallback="/admin/partners" /> }}
+      />
+      <Drawer.Screen name="settings" options={{ ...show(perm.admin), title: 'Settings', drawerLabel: 'Settings', drawerIcon: icon('settings') }} />
       <Drawer.Screen
         name="driver/[id]"
         options={{ ...hidden, title: 'Driver details', headerLeft: () => <BackButton fallback="/admin/drivers" /> }}

@@ -23,6 +23,23 @@ export const carFields: FieldDef[] = [
   { key: 'color', label: 'Color' },
   { key: 'vin', label: 'Chassis / VIN' },
   { key: 'status', label: 'Status', type: 'select', options: opts(CAR_STATUSES), required: true },
+  {
+    key: 'ownership',
+    label: 'Ownership',
+    type: 'select',
+    options: [
+      { value: 'own', label: 'Company car', sub: 'Owned by the company' },
+      { value: 'rented', label: 'Rented from someone', sub: 'Taken on rent, then given out' },
+      { value: 'shared', label: 'Shared with partners', sub: 'Partners own a share and get part of the profit' },
+    ],
+    required: true,
+    hint: 'For shared cars, add the partners and their % on the car page.',
+  },
+  { key: 'rent_owner', label: 'Owner (rented from)', showIf: (v) => v.ownership === 'rented' },
+  { key: 'rent_owner_phone', label: 'Owner phone', type: 'phone', showIf: (v) => v.ownership === 'rented' },
+  { key: 'monthly_rent', label: 'Rent we pay per month (SAR)', type: 'number', showIf: (v) => v.ownership === 'rented', hint: 'Shown on the car page; add it each month as a "Car rent" expense with one tap.' },
+  { key: 'rent_start', label: 'Rent from', type: 'date', showIf: (v) => v.ownership === 'rented' },
+  { key: 'rent_end', label: 'Rent until', type: 'date', showIf: (v) => v.ownership === 'rented' },
   { key: 'current_odometer', label: 'Current odometer (km)', type: 'number' },
   { key: 'purchase_date', label: 'Purchase date', type: 'date' },
   { key: 'purchase_price', label: 'Purchase price (SAR)', type: 'number' },
@@ -88,6 +105,7 @@ export const expenseFields = (cars: Car[], people: Profile[]): FieldDef[] => [
     type: 'select',
     options: [
       { value: 'company', label: 'Company' },
+      { value: 'cash', label: "From driver's company cash" },
       { value: 'driver', label: 'Driver (to reimburse)' },
     ],
     required: true,
@@ -107,20 +125,22 @@ export const expenseFields = (cars: Car[], people: Profile[]): FieldDef[] => [
 ];
 
 /** What a driver fills in */
-export const driverExpenseFields = (cars: Car[]): FieldDef[] => [
+export const driverExpenseFields = (cars: Car[], cashBalance = 0): FieldDef[] => [
   { key: 'car_id', label: 'Car', type: 'select', options: carOptions(cars), required: true },
   { key: 'category', label: 'Category', type: 'select', options: categoryOptions, required: true },
   { key: 'amount', label: 'Amount (SAR)', type: 'number', required: true },
   { key: 'expense_date', label: 'Date', type: 'date', required: true },
   {
     key: 'paid_by',
-    label: 'Who paid?',
+    label: 'Paid from',
     type: 'select',
     options: [
-      { value: 'driver', label: 'I paid (driver)' },
-      { value: 'company', label: 'Company paid' },
+      { value: 'cash', label: 'Company cash I hold', sub: cashBalance > 0 ? `You have SAR ${cashBalance}` : 'You have no company cash now' },
+      { value: 'driver', label: 'My own money', sub: 'Added to your salary after approval' },
+      { value: 'company', label: 'Company paid directly', sub: 'Office / company card paid it' },
     ],
     required: true,
+    hint: cashBalance > 0 ? 'Company cash is used automatically while you have it.' : undefined,
   },
   { key: 'odometer', label: 'Odometer (km)', type: 'number' },
   { key: 'reference', label: 'Invoice / violation number' },
@@ -162,6 +182,7 @@ export const profileFields: FieldDef[] = [
 
 export const ROLE_OPTIONS: Option[] = [
   { value: 'driver', label: 'Driver', sub: 'Own profile, car, daily work and expenses' },
+  { value: 'partner', label: 'Partner (share holder)', sub: 'Sees only the cars he shares, their profit and his wallet' },
   { value: 'manager', label: 'Manager (admin assistant)', sub: 'Only what you tick below' },
   { value: 'admin', label: 'Admin', sub: 'Everything' },
 ];

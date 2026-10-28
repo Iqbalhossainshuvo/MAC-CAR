@@ -8,6 +8,7 @@ import { Button, C, Card, Empty, F, IconTile, Loading, Row, Screen } from '@/com
 import { saveRow, useFleet } from '@/lib/data';
 import { carName, today } from '@/lib/format';
 import { driverExpenseFields, logFields } from '@/lib/forms';
+import { cashAccount } from '@/lib/payroll';
 import { currentAssignment } from '@/lib/stats';
 
 export default function DriverAdd() {
@@ -21,11 +22,14 @@ export default function DriverAdd() {
     return { now, cars: d.cars.filter((c) => d.assignments.some((a) => a.car_id === c.id && (!a.end_date || a.end_date >= today()))) };
   }, [d]);
 
+  const cashLeft = d.me ? cashAccount(d, d.me.id).balance : 0;
+
   const openExpense = () =>
     form.open({
       title: 'Add expense / work / fine',
-      fields: driverExpenseFields(myCars.cars),
-      initial: { car_id: myCars.now?.car_id, expense_date: today(), paid_by: 'driver', category: 'fuel', odometer: carById.get(myCars.now?.car_id ?? '')?.current_odometer },
+      fields: driverExpenseFields(myCars.cars, cashLeft),
+      // company cash first while the driver holds some
+      initial: { car_id: myCars.now?.car_id, expense_date: today(), paid_by: cashLeft > 0 ? 'cash' : 'driver', category: 'fuel', odometer: carById.get(myCars.now?.car_id ?? '')?.current_odometer },
       saveText: 'Send',
       footer: 'The admin will check and approve this entry.',
       onSubmit: async (v) => {

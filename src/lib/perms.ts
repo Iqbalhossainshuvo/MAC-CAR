@@ -7,7 +7,7 @@ import type { Profile } from './types';
  * Stored on the user as "cars:edit,expenses:view,approve,reports".
  */
 
-export type Area = 'cars' | 'drivers' | 'expenses' | 'income' | 'salary';
+export type Area = 'cars' | 'drivers' | 'expenses' | 'income' | 'salary' | 'partners';
 export type Flag = 'approve' | 'logins' | 'reports' | 'archive';
 export type Level = 'view' | 'edit';
 export type Perms = Partial<Record<Area, Level>> & Partial<Record<Flag, true>>;
@@ -17,7 +17,8 @@ export const AREAS: { key: Area; label: string; hint: string }[] = [
   { key: 'drivers', label: 'Drivers', hint: 'Driver details, driver documents, daily reports' },
   { key: 'expenses', label: 'Expenses', hint: 'Expenses and receipts' },
   { key: 'income', label: 'Income', hint: 'Income from cars' },
-  { key: 'salary', label: 'Salary', hint: 'Salary, advances, incentives, payments' },
+  { key: 'salary', label: 'Salary & company cash', hint: 'Salary, advances, incentives, payments, cash given for car work' },
+  { key: 'partners', label: 'Partners', hint: 'Car shares, partners\' profit and payouts' },
 ];
 
 export const FLAGS: { key: Flag; label: string; hint: string }[] = [

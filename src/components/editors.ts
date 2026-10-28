@@ -14,8 +14,8 @@ import {
 } from '@/lib/forms';
 import { today } from '@/lib/format';
 import { can } from '@/lib/perms';
-import { monthLabel, monthLastDay, PAY_LABEL, recentMonths, salaryPartsText } from '@/lib/payroll';
-import type { Assignment, Car, CarDocument, Expense, Income, PayEntry, PayType, Profile } from '@/lib/types';
+import { CASH_LABEL, monthLabel, monthLastDay, PAY_LABEL, recentMonths, salaryPartsText } from '@/lib/payroll';
+import type { Assignment, Car, CarDocument, CarShare, CashEntry, Expense, Income, PartnerEntry, PayEntry, PayType, Profile } from '@/lib/types';
 
 import type { FieldDef, FormConfig } from './FormSheet';
 
@@ -51,7 +51,7 @@ export function editCar(open: Open, reload: Reload, car?: Car) {
   open({
     title: car ? `Edit ${car.plate_no}` : 'Add car',
     fields: carFields,
-    initial: car ?? { status: 'active' },
+    initial: car ? { ...car, ownership: car.ownership ?? 'own' } : { status: 'active', ownership: 'own' },
     onSubmit: saver('cars', reload, car?.id),
   });
 }
@@ -98,7 +98,7 @@ export function editExpense(open: Open, reload: Reload, d: FleetData, e?: Partia
   });
 }
 
-export function newUser(open: Open, reload: Reload, role: 'driver' | 'manager' | 'admin' = 'driver', title?: string) {
+export function newUser(open: Open, reload: Reload, role: 'driver' | 'manager' | 'admin' | 'partner' = 'driver', title?: string) {
   open({
     title: title ?? (role === 'driver' ? 'Add driver (login)' : 'Add user'),
     fields: userFieldsForMe(newUserFields),
@@ -188,5 +188,105 @@ export function editPay(
       }
       return saver('payroll', reload, entry?.id)({ ...v, type, driver_id: driver.id });
     },
+  });
+}
+
+/** Company cash for car work: give, returned, or settle with salary. */
+export function editCash(open: Open, reload: Reload, driver: Profile, type: CashEntry['type'], entry?: CashEntry, suggested?: number) {
+  const hint: Record<CashEntry['type'], string> = {
+    given: 'Money given to the driver for fuel, repairs and other car work. Expenses he enters are taken from it.',
+    returned: 'Unused company cash the driver gave back.',
+    to_salary: 'The driver keeps this company cash: it is taken from his salary.',
+    from_salary: 'The driver spent more than the company cash he had: this is added to his salary.',
+  };
+  open({
+    title: `${entry ? 'Edit' : 'Add'} · ${CASH_LABEL[type]} · ${driver.full_name || driver.username}`,
+    fields: [
+      { key: 'amount', label: 'Amount (SAR)', type: 'number', required: true, hint: hint[type] },
+      { key: 'entry_date', label: 'Date', type: 'date', required: true },
+      ...(type === 'given' || type === 'returned'
+        ? [
+            {
+              key: 'method',
+              label: 'How',
+              type: 'select' as const,
+              options: [
+                { value: 'cash', label: 'Cash' },
+                { value: 'bank', label: 'Bank transfer' },
+                { value: 'other', label: 'Other' },
+              ],
+              allowEmpty: true,
+            },
+          ]
+        : []),
+      { key: 'description', label: 'Note', type: 'multiline' },
+    ],
+    initial: entry ?? { amount: suggested && suggested > 0 ? suggested : undefined, entry_date: today(), method: type === 'given' || type === 'returned' ? 'cash' : undefined },
+    saveText: entry ? 'Save' : 'Add',
+    onSubmit: async (v) => saver('cash', reload, entry?.id)({ ...v, type, driver_id: driver.id }),
+  });
+}
+
+/** Add / edit a partner's share in a car. */
+export function editShare(open: Open, reload: Reload, d: FleetData, carId: string, share?: CarShare) {
+  const partners = d.profiles.filter((p) => p.role === 'partner');
+  open({
+    title: share ? 'Edit share' : 'Add partner share',
+    fields: [
+      {
+        key: 'partner_id',
+        label: 'Partner',
+        type: 'select',
+        required: true,
+        options: partners.map((p) => ({ value: p.id, label: p.full_name || p.username || '', sub: p.active ? '' : 'Inactive' })),
+        hint: partners.length ? undefined : 'First create a user with role "Partner" in User.',
+      },
+      { key: 'share_percent', label: 'Share (%)', type: 'number', required: true, hint: 'Part of the car profit this partner gets, e.g. 50.' },
+      { key: 'fee_percent', label: 'Company management fee (%)', type: 'number', hint: 'Optional. Taken from the profit before sharing, e.g. 10.' },
+      { key: 'start_date', label: 'From', type: 'date', required: true },
+      { key: 'end_date', label: 'Until', type: 'date', hint: 'Leave empty while the partnership runs.' },
+      { key: 'notes', label: 'Notes / agreement', type: 'multiline' },
+    ],
+    initial: share ?? { start_date: today().slice(0, 8) + '01', fee_percent: 0 },
+    onSubmit: async (v) => saver('car_shares', reload, share?.id)({ ...v, car_id: carId }),
+  });
+}
+
+/** Payout to a partner, or a correction of his wallet. */
+export function editPartnerEntry(open: Open, reload: Reload, d: FleetData, partner: Profile, type: PartnerEntry['type'], entry?: PartnerEntry, suggested?: number) {
+  const myCars = d.shares.filter((s) => s.partner_id === partner.id).map((s) => s.car_id);
+  const label = { payout: 'Pay partner', adjust_add: 'Add to wallet', adjust_less: 'Take from wallet' }[type];
+  open({
+    title: `${entry ? 'Edit' : label} · ${partner.full_name || partner.username}`,
+    fields: [
+      { key: 'amount', label: 'Amount (SAR)', type: 'number', required: true },
+      { key: 'entry_date', label: 'Date', type: 'date', required: true },
+      {
+        key: 'car_id',
+        label: 'Car (optional)',
+        type: 'select',
+        allowEmpty: true,
+        options: d.cars.filter((c) => myCars.includes(c.id)).map((c) => ({ value: c.id, label: c.plate_no })),
+      },
+      ...(type === 'payout'
+        ? [
+            {
+              key: 'method',
+              label: 'Paid by',
+              type: 'select' as const,
+              allowEmpty: true,
+              options: [
+                { value: 'cash', label: 'Cash' },
+                { value: 'bank', label: 'Bank transfer' },
+                { value: 'other', label: 'Other' },
+              ],
+            },
+          ]
+        : []),
+      { key: 'description', label: 'Note', type: 'multiline', placeholder: type === 'payout' ? 'e.g. Profit for September' : 'Why' },
+    ],
+    initial: entry ?? { amount: suggested && suggested > 0 ? suggested : undefined, entry_date: today(), method: type === 'payout' ? 'bank' : undefined },
+    saveText: entry ? 'Save' : 'Add',
+    onSubmit: async (v) => saver('partner_ledger', reload, entry?.id)({ ...v, type, partner_id: partner.id }),
   });
 }

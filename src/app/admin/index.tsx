@@ -33,6 +33,7 @@ import { saveRow, useFleet } from '@/lib/data';
 import { carName, expiryLevel, expiryText, fmtDate, fromCents, money, personName, toCents, today } from '@/lib/format';
 import { driverAccount, driverCost, monthLabel, salaryDues, salaryTimeMonth } from '@/lib/payroll';
 import { useAuth } from '@/lib/auth';
+import { partnersShare } from '@/lib/partners';
 import { usePerm } from '@/lib/perms';
 import { carMoney, currentAssignment, expenseByCategory, expiryAlerts, lastMonths, money as sumMoney, PERIOD_LABEL, periodRange, type Period } from '@/lib/stats';
 import { CATEGORY_LABEL } from '@/lib/types';
@@ -55,7 +56,9 @@ export default function Dashboard() {
     const inShop = d.cars.filter((c) => c.status === 'maintenance').length;
     const m = sumMoney(d.incomes, d.expenses, from, to);
     const drivers$ = driverCost(d, from, to);
-    const net = fromCents(toCents(m.profit) - toCents(drivers$));
+    // partners' part of shared cars' profit is theirs, not the company's
+    const partners$ = d.shares.length ? partnersShare(d, from, to) : 0;
+    const net = fromCents(toCents(m.profit) - toCents(drivers$) - toCents(partners$));
     const perCar = d.cars
       .filter((c) => c.status !== 'sold')
       .map((c) => ({ car: c, ...carMoney(d, c.id, from, to) }))
@@ -69,6 +72,7 @@ export default function Dashboard() {
       inShop,
       m,
       drivers$,
+      partners$,
       net,
       perCar,
       pending,
@@ -167,6 +171,7 @@ export default function Dashboard() {
             </Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: F.regular, fontSize: 13, marginTop: 4 }}>
               Income {money(stats.m.income)} · Car expenses {money(stats.m.expense)} · Driver salaries {money(stats.drivers$)}
+              {stats.partners$ ? ` · Partners' share ${money(stats.partners$)}` : ''}
             </Text>
           </View>
           <Pressable

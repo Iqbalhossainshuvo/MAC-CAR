@@ -23,7 +23,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useFleet } from '@/lib/data';
 import { expiryLevel, fmtDate, inRange, money, monthEnd, monthStart, num, personName, sum, today } from '@/lib/format';
-import { carriedNote, driverAccount, salaryDues, salaryParts } from '@/lib/payroll';
+import { carriedNote, cashAccount, driverAccount, salaryDues, salaryParts } from '@/lib/payroll';
 import { currentAssignment } from '@/lib/stats';
 
 export default function DriverHome() {
@@ -60,6 +60,7 @@ export default function DriverHome() {
   const dues = acc ? salaryDues(acc) : null;
   const thisM = acc?.months.find((x) => x.month === today().slice(0, 7));
   const parts = salaryParts(me);
+  const cash = me ? cashAccount(d, me.id) : null;
 
   if (firstLoad) return <Loading />;
 
@@ -130,7 +131,7 @@ export default function DriverHome() {
 
       {me && (parts.length || me.monthly_salary || dues?.payable || dues?.owes) ? (
         <Pressable onPress={() => router.push('/driver/profile')} accessibilityRole="button" accessibilityLabel="Open my salary">
-          <ListCard title="My salary">
+          <ListCard title="Salary & pay">
             <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }}>
               {parts.map(([label, val]) => (
                 <Row key={label} style={{ justifyContent: 'space-between' }}>
@@ -160,6 +161,23 @@ export default function DriverHome() {
                   ) : null}
                 </View>
               ) : null}
+            </View>
+          </ListCard>
+        </Pressable>
+      ) : null}
+
+      {cash && cash.lines.length ? (
+        <Pressable onPress={() => router.push('/driver/profile')} accessibilityRole="button" accessibilityLabel="Open company cash">
+          <ListCard title="Company cash for car work">
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+              <Text style={{ color: C.muted, fontFamily: F.semi, fontSize: 12 }}>
+                {cash.balance > 0 ? 'You hold' : cash.balance < 0 ? 'You spent extra — company owes you' : 'Nothing in hand'}
+              </Text>
+              <Text style={{ color: cash.balance < 0 ? C.blue : C.amber, fontFamily: F.display, fontSize: 24 }}>{money(Math.abs(cash.balance))}</Text>
+              <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 11 }}>
+                Given {money(cash.given)} · Spent {money(cash.spent)} · Returned {money(cash.returned)}
+                {cash.balance > 0 ? ' · New expenses use this money first' : ''}
+              </Text>
             </View>
           </ListCard>
         </Pressable>

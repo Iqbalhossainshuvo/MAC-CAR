@@ -1,6 +1,6 @@
 import type { FleetData } from './data';
-import { fromCents, inRange, toCents } from './format';
-import type { Expense, PayEntry, PayType } from './types';
+import { fromCents, inRange, toCents, today } from './format';
+import type { CashEntry, Expense, PayEntry, PayType } from './types';
 
 /*
  * Driver salary account
@@ -35,12 +35,14 @@ export const PAY_SIGN: Record<PayType, 1 | -1> = {
   payment: -1,
 };
 
-export type LineKind = PayType | 'reimbursement' | 'fine';
+export type LineKind = PayType | 'reimbursement' | 'fine' | 'cash_kept' | 'cash_overspent';
 
 export const LINE_LABEL: Record<LineKind, string> = {
   ...PAY_LABEL,
   reimbursement: 'Paid from own pocket',
   fine: 'Fine',
+  cash_kept: 'Company cash kept (from salary)',
+  cash_overspent: 'Company cash overspent (added)',
 };
 
 export interface AccountLine {
@@ -70,6 +72,9 @@ export interface MonthSummary {
   fines: number;
   deductions: number;
   paid: number;
+  /** company cash moved into the salary: + overspent, − kept */
+  cashIn: number;
+  cashOut: number;
   closing: number;
 }
 
@@ -82,12 +87,15 @@ export interface Account {
 
 const monthOf = (date: string) => date.slice(0, 7);
 
-/** Fines the driver must repay: company paid it, admin approved it, not waived. */
+/** Paid with company money (directly, or from the company cash the driver holds). */
+export const companyPaid = (e: Pick<Expense, 'paid_by'>) => e.paid_by === 'company' || e.paid_by === 'cash';
+
+/** Fines the driver must repay: company money paid it, admin approved it, not waived. */
 export function isChargedFine(e: Expense) {
-  return e.category === 'fine' && e.status === 'approved' && e.paid_by === 'company' && !e.waived;
+  return e.category === 'fine' && e.status === 'approved' && companyPaid(e) && !e.waived;
 }
 
-export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'>, driverId: string): Account {
+export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'> & { cash?: CashEntry[] }, driverId: string): Account {
   const raw: Omit<AccountLine, 'balance'>[] = [];
 
   for (const p of d.payroll ?? []) {
@@ -108,7 +116,7 @@ export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'>, driver
   for (const e of d.expenses ?? []) {
     if (e.driver_id !== driverId || e.status !== 'approved') continue;
     if (e.category === 'fine') {
-      if (e.paid_by !== 'company') continue; // driver paid the fine himself: nothing to settle
+      if (!companyPaid(e)) continue; // driver paid the fine himself: nothing to settle
       raw.push({
         key: `f-${e.id}`,
         kind: 'fine',
@@ -133,6 +141,20 @@ export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'>, driver
     }
   }
 
+  // company cash settled through the salary
+  for (const c of d.cash ?? []) {
+    if (c.driver_id !== driverId || (c.type !== 'to_salary' && c.type !== 'from_salary')) continue;
+    raw.push({
+      key: `c-${c.id}`,
+      kind: c.type === 'to_salary' ? 'cash_kept' : 'cash_overspent',
+      date: c.entry_date,
+      month: monthOf(c.entry_date),
+      amount: fromCents(toCents(c.amount)),
+      sign: c.type === 'to_salary' ? -1 : 1,
+      description: c.description ?? '',
+    });
+  }
+
   // oldest first; same day → salary/credits before debits, then by creation time
   raw.sort(
     (a, b) =>
@@ -149,7 +171,7 @@ export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'>, driver
 
   // month by month statement
   const byMonth = new Map<string, MonthSummary>();
-  const zero = () => ({ salary: 0, bonus: 0, reimbursed: 0, refunds: 0, advances: 0, fines: 0, deductions: 0, paid: 0 });
+  const zero = () => ({ salary: 0, bonus: 0, reimbursed: 0, refunds: 0, advances: 0, fines: 0, deductions: 0, paid: 0, cashIn: 0, cashOut: 0 });
   const cents = new Map<string, ReturnType<typeof zero>>();
   const months = [...new Set(lines.map((l) => l.month))].sort();
   for (const m of months) cents.set(m, zero());
@@ -164,12 +186,14 @@ export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'>, driver
     else if (l.kind === 'fine') c.fines += v;
     else if (l.kind === 'deduction') c.deductions += v;
     else if (l.kind === 'payment') c.paid += v;
+    else if (l.kind === 'cash_overspent') c.cashIn += v;
+    else if (l.kind === 'cash_kept') c.cashOut += v;
   }
   let running = 0;
   for (const m of months) {
     const c = cents.get(m)!;
     const opening = running;
-    running += c.salary + c.bonus + c.reimbursed + c.refunds - c.advances - c.fines - c.deductions - c.paid;
+    running += c.salary + c.bonus + c.reimbursed + c.refunds + c.cashIn - c.advances - c.fines - c.deductions - c.paid - c.cashOut;
     byMonth.set(m, {
       month: m,
       opening: fromCents(opening),
@@ -181,6 +205,8 @@ export function driverAccount(d: Pick<FleetData, 'payroll' | 'expenses'>, driver
       fines: fromCents(c.fines),
       deductions: fromCents(c.deductions),
       paid: fromCents(c.paid),
+      cashIn: fromCents(c.cashIn),
+      cashOut: fromCents(c.cashOut),
       closing: fromCents(running),
     });
   }
@@ -275,7 +301,7 @@ export interface Dues {
  * Credits (salary, incentive, own-pocket expenses, money paid back) create an amount owed for their month;
  * debits (payments, advances, fines, deductions) settle the oldest unpaid month first.
  */
-export function salaryDues(acc: Account, current = new Date().toISOString().slice(0, 7)): Dues {
+export function salaryDues(acc: { lines: { sign: number; amount: number; month: string }[] }, current = today().slice(0, 7)): Dues {
   const queue: { month: string; cents: number }[] = [];
   let debt = 0; // cents the driver owes
   for (const l of acc.lines) {
@@ -324,4 +350,69 @@ export function salaryTimeMonth(now = new Date()): string | null {
   if (day >= 25) return ym(now);
   if (day <= 5) return ym(new Date(now.getFullYear(), now.getMonth() - 1, 1));
   return null;
+}
+
+// ---------------------------------------------------------------- company cash (money for car work)
+
+export const CASH_LABEL: Record<CashEntry['type'], string> = {
+  given: 'Cash given for car work',
+  returned: 'Cash returned by driver',
+  to_salary: 'Kept cash taken from salary',
+  from_salary: 'Overspent paid via salary',
+};
+
+export interface CashLine {
+  key: string;
+  date: string;
+  label: string;
+  amount: number;
+  sign: 1 | -1;
+  /** waiting for approval (still counted: the money is spent) */
+  pending?: boolean;
+  description: string;
+  entry?: CashEntry;
+  expense?: Expense;
+  balance: number;
+}
+
+/**
+ * Company cash a driver holds: given − returned − spent (expenses paid from it, unless rejected)
+ * ± settled with salary. Below 0 = he spent his own money on top, the company owes him.
+ */
+export function cashAccount(d: Pick<FleetData, 'expenses'> & { cash?: CashEntry[] }, driverId: string) {
+  const raw: Omit<CashLine, 'balance'>[] = [];
+  for (const c of d.cash ?? []) {
+    if (c.driver_id !== driverId) continue;
+    const plus = c.type === 'given' || c.type === 'from_salary';
+    raw.push({ key: `c-${c.id}`, date: c.entry_date, label: CASH_LABEL[c.type], amount: fromCents(toCents(c.amount)), sign: plus ? 1 : -1, description: c.description ?? '', entry: c });
+  }
+  for (const e of d.expenses ?? []) {
+    if (e.driver_id !== driverId || e.paid_by !== 'cash' || e.status === 'rejected') continue;
+    raw.push({
+      key: `e-${e.id}`,
+      date: e.expense_date,
+      label: `Spent · ${e.category}`,
+      amount: fromCents(toCents(e.amount)),
+      sign: -1,
+      pending: e.status === 'pending',
+      description: [e.description, e.reference ? `#${e.reference}` : null].filter(Boolean).join(' · '),
+      expense: e,
+    });
+  }
+  raw.sort((a, b) => a.date.localeCompare(b.date) || b.sign - a.sign);
+  let bal = 0;
+  const lines: CashLine[] = raw.map((l) => {
+    bal += l.sign * toCents(l.amount);
+    return { ...l, balance: fromCents(bal) };
+  });
+  const sumOf = (f: (l: CashLine) => boolean) => fromCents(lines.filter(f).reduce((c, l) => c + toCents(l.amount), 0));
+  return {
+    lines,
+    balance: fromCents(bal),
+    given: sumOf((l) => l.entry?.type === 'given'),
+    spent: sumOf((l) => !!l.expense),
+    pendingSpent: sumOf((l) => !!l.pending),
+    returned: sumOf((l) => l.entry?.type === 'returned'),
+    settled: fromCents(lines.filter((l) => l.entry && (l.entry.type === 'to_salary' || l.entry.type === 'from_salary')).reduce((c, l) => c + l.sign * toCents(l.amount), 0)),
+  };
 }

@@ -78,6 +78,7 @@ export function ExpenseRow({
             {e.status !== 'approved' ? <Badge text={e.status} tone={statusTone(e.status)} /> : null}
             {e.paid_by === 'driver' ? <Badge text={driverName && driverName !== '-' ? `Paid by ${driverName}` : 'Paid by driver'} tone="blue" /> : null}
             {e.paid_by === 'company' && driverName && driverName !== '-' ? <Badge text={`Via ${driverName}`} tone="gray" /> : null}
+            {e.paid_by === 'cash' ? <Badge text={driverName && driverName !== '-' ? `Company cash · ${driverName}` : 'From company cash'} tone="amber" /> : null}
             {e.category === 'fine' && e.waived ? <Badge text="Fine waived" tone="gray" /> : null}
           </Row>
           {e.file_id || receipt?.canUpload ? (

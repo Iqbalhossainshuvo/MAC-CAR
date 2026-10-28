@@ -185,4 +185,57 @@ r=call({action:'saveUser',token:R6,user:{id:rah.id,basic_salary:99999}});ok(r.ok
 r=call({action:'saveUser',token:A6,user:{username:'newbie',full_name:'New Bie',password:'123456',role:'driver',basic_salary:1500,food_allowance:200}});ok(r.ok&&r.data.monthly_salary===1700,'new driver total computed');
 }
 
+// --- company cash, shared cars + partners, WhatsApp report
+{
+const A7=call({action:'login',username:'admin',password:'123456'}).data.token;
+const D=call({action:'data',token:A7}).data;const rah=D.profiles.find(p=>p.username==='rahim');const car=D.cars.find(c=>!c.archived).id;
+const R7=call({action:'login',username:'rahim',password:'driver1'}).data.token;
+const today=new Date().toISOString().slice(0,10);
+// no cash yet: not chosen → own pocket
+r=call({action:'save',token:R7,table:'expenses',row:{car_id:car,category:'fuel',amount:50,expense_date:today}});ok(r.ok&&r.data.paid_by==='driver','no company cash: defaults to own pocket');
+r=call({action:'save',token:A7,table:'cash',row:{driver_id:rah.id,type:'given',amount:500,entry_date:today,method:'cash'}});ok(r.ok&&r.data.driver_name,'admin gives company cash');
+r=call({action:'save',token:A7,table:'cash',row:{driver_id:rah.id,type:'given',amount:0,entry_date:today}});ok(!r.ok,'zero cash blocked');
+r=call({action:'save',token:R7,table:'expenses',row:{car_id:car,category:'fuel',amount:120,expense_date:today}});ok(r.ok&&r.data.paid_by==='cash','company cash available: defaults to company cash');
+r=call({action:'save',token:R7,table:'expenses',row:{car_id:car,category:'wash',amount:30,expense_date:today,paid_by:'driver'}});ok(r.ok&&r.data.paid_by==='driver','driver can still choose own pocket');
+ok(ctx.cashBalance_(rah.id)===380,'cash balance 500 − 120 = 380');
+r=call({action:'save',token:R7,table:'cash',row:{driver_id:rah.id,type:'given',amount:9999,entry_date:today}});ok(!r.ok,'driver cannot add cash entries');
+r=call({action:'data',token:R7});ok(r.data.cash.length===1,'driver sees own cash entries');
+// shares
+r=call({action:'saveUser',token:A7,user:{username:'partner1',full_name:'Abdullah Partner',password:'partner1',role:'partner'}});ok(r.ok&&r.data.role==='partner','partner user');const pt=r.data.id;
+r=call({action:'saveUser',token:A7,user:{username:'partner2',full_name:'Second Partner',password:'partner2',role:'partner'}});const pt2=r.data.id;
+r=call({action:'save',token:A7,table:'cars',row:{id:car,ownership:'shared'}});ok(r.ok&&r.data.ownership==='shared','car marked shared');
+r=call({action:'save',token:A7,table:'car_shares',row:{car_id:car,partner_id:pt,share_percent:60,fee_percent:10,start_date:'2026-01-01'}});ok(r.ok&&r.data.partner_name==='Abdullah Partner'&&r.data.car_plate,'share added');
+r=call({action:'save',token:A7,table:'car_shares',row:{car_id:car,partner_id:pt2,share_percent:50,start_date:'2026-01-01'}});ok(!r.ok&&/100%/.test(r.error),'shares over 100% blocked');
+r=call({action:'save',token:A7,table:'car_shares',row:{car_id:car,partner_id:pt2,share_percent:40,start_date:'2026-01-01'}});ok(r.ok,'second share 40% ok');
+r=call({action:'save',token:A7,table:'car_shares',row:{car_id:car,partner_id:rah.id,share_percent:1,start_date:'2026-01-01'}});ok(!r.ok,'share only for partner users');
+r=call({action:'save',token:A7,table:'partner_ledger',row:{partner_id:pt,type:'payout',amount:100,entry_date:today,method:'bank'}});ok(r.ok,'payout');
+const P=call({action:'login',username:'partner1',password:'partner1'});ok(P.ok,'partner login');
+r=call({action:'data',token:P.data.token});
+ok(r.ok&&r.data.cars.length===1&&r.data.shares.length===1&&r.data.partnerLedger.length===1&&r.data.payroll.length===0&&r.data.profiles.length===1,'partner sees only own car/share/wallet');
+ok(r.data.expenses.every(e=>e.status==='approved'&&!e.driver_name&&!e.driver_id),'partner: approved expenses without driver details');
+ok(!('purchase_price' in r.data.cars[0])&&!('vin' in r.data.cars[0]),'partner: limited car info');
+r=call({action:'save',token:P.data.token,table:'expenses',row:{car_id:car,category:'fuel',amount:5,expense_date:today}});ok(!r.ok,'partner cannot add expenses');
+r=call({action:'save',token:P.data.token,table:'partner_ledger',row:{partner_id:pt,type:'adjust_add',amount:5,entry_date:today}});ok(!r.ok,'partner cannot change wallet');
+// WhatsApp
+const sent=[];ctx._fetch=(url,opt)=>{sent.push({url,opt});const body=/\/media$/.test(url)?{id:'MEDIA1'}:{messages:[{id:'m'}]};return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(body)}};
+r=call({action:'saveSettings',token:R7,settings:{}});ok(!r.ok,'driver cannot change WhatsApp settings');
+r=call({action:'saveSettings',token:A7,settings:{enabled:true,token:'EAAX',phoneId:'123',to:'+966 55 123 4567, 0',hour:21,sections:['summary','logs','expenses','bogus'],format:'pdf'}});
+ok(r.ok&&r.data.to==='966551234567'&&r.data.hasToken&&r.data.sections.join()==='summary,logs,expenses'&&!('token' in r.data),'settings saved, numbers cleaned, token hidden');
+ok(ctx.ScriptApp._t.length===1&&ctx.ScriptApp._t[0].hour===21,'daily trigger installed at 21:00');
+r=call({action:'saveSettings',token:A7,settings:{enabled:true,phoneId:'123',to:'966551234567',hour:7,sections:['summary'],format:'pdf'}});ok(r.ok&&r.data.hasToken&&ctx.ScriptApp._t.length===1&&ctx.ScriptApp._t[0].hour===7,'token kept when empty, trigger replaced');
+call({action:'saveSettings',token:A7,settings:{enabled:true,phoneId:'123',to:'966551234567,966500000000',hour:21,sections:['summary','logs','expenses','income','pending','nolog','docs','cash','salary'],format:'pdf'}});
+r=call({action:'sendReportNow',token:A7});
+ok(r.ok&&r.data.results.length===2&&r.data.results.every(x=>x.ok),'report sent to 2 numbers');
+ok(sent[0].url.endsWith('/123/media')&&sent[0].opt.headers.Authorization==='Bearer EAAX','media uploaded with token');
+const m1=JSON.parse(sent[1].opt.payload);ok(m1.type==='document'&&m1.document.id==='MEDIA1'&&/\.pdf$/.test(m1.document.filename)&&/Income/.test(m1.document.caption),'document message with caption');
+const rep=ctx.buildDailyReport_(today,['summary','logs','expenses','income','pending','nolog','docs','cash','salary']);ok(/Company cash with drivers/.test(rep.html)&&/SAR 380/.test(rep.html),'report includes company cash');
+sent.length=0;call({action:'saveSettings',token:A7,settings:{enabled:true,phoneId:'123',to:'966551234567',hour:21,sections:['summary'],format:'image',template:'daily_report',lang:'en'}});
+r=call({action:'sendReportNow',token:A7});const m2=JSON.parse(sent[1].opt.payload);
+ok(r.ok&&m2.type==='template'&&m2.template.components[0].parameters[0].type==='image','picture + template message');
+ctx._fetch=()=>({getResponseCode:()=>401,getContentText:()=>JSON.stringify({error:{message:'Invalid OAuth access token'}})});
+r=call({action:'sendReportNow',token:A7});ok(!r.ok&&/Invalid OAuth/.test(r.error),'WhatsApp error shown');
+ctx._fetch=null;
+ok(ctx.saveWaSettings_({enabled:false,to:'0551112222;00971501234567'}).to==='966551112222,971501234567','local 05… and 00… numbers fixed');
+}
+
 console.log(fails?fails+' FAILED':'ALL PASSED');

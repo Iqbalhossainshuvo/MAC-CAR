@@ -30,8 +30,9 @@ var TABLES = {
   cars: {
     sheet: 'Cars',
     cols: ['id', 'plate_no', 'make', 'model', 'year', 'color', 'vin', 'status', 'purchase_date',
-      'purchase_price', 'current_odometer', 'notes', 'created_at', 'archived', 'archived_at', 'archived_by'],
-    num: ['year', 'purchase_price', 'current_odometer'],
+      'purchase_price', 'current_odometer', 'notes', 'created_at', 'archived', 'archived_at', 'archived_by',
+      'ownership', 'rent_owner', 'rent_owner_phone', 'monthly_rent', 'rent_start', 'rent_end'],
+    num: ['year', 'purchase_price', 'current_odometer', 'monthly_rent'],
     bool: ['archived'],
   },
   car_documents: {
@@ -76,6 +77,36 @@ var TABLES = {
     num: ['start_odometer', 'end_odometer', 'trips', 'cash_collected'],
     bool: ['archived'],
   },
+  // Company money a driver holds for car work (fuel, repairs…). Separate from salary.
+  //   given        company gives cash to the driver            (+ cash in hand)
+  //   returned     driver gives unused cash back               (− cash in hand)
+  //   to_salary    driver kept cash → taken from his salary    (− cash in hand, − salary)
+  //   from_salary  driver spent more than he had → paid via salary (+ cash in hand, + salary)
+  // Expenses with paid_by = 'cash' are paid from this money.
+  cash: {
+    sheet: 'CompanyCash',
+    cols: ['id', 'driver_id', 'driver_name', 'type', 'amount', 'entry_date', 'method', 'description',
+      'created_by', 'created_at', 'archived', 'archived_at', 'archived_by'],
+    num: ['amount'],
+    bool: ['archived'],
+  },
+  // Partners (share holders) of a car: they get share_percent of the car's monthly profit
+  // after the company's management fee (fee_percent).
+  car_shares: {
+    sheet: 'CarShares',
+    cols: ['id', 'car_id', 'car_plate', 'partner_id', 'partner_name', 'share_percent', 'fee_percent', 'start_date', 'end_date', 'notes',
+      'created_at', 'archived', 'archived_at', 'archived_by'],
+    num: ['share_percent', 'fee_percent'],
+    bool: ['archived'],
+  },
+  // Money paid to a partner (payout) or other corrections to the partner's wallet.
+  partner_ledger: {
+    sheet: 'PartnerWallet',
+    cols: ['id', 'partner_id', 'partner_name', 'car_id', 'car_plate', 'type', 'amount', 'entry_date', 'method', 'description',
+      'created_by', 'created_at', 'archived', 'archived_at', 'archived_by'],
+    num: ['amount'],
+    bool: ['archived'],
+  },
 };
 
 var HIDDEN_USER_FIELDS = ['password_hash', 'salt', 'set_password'];
@@ -85,14 +116,16 @@ var FILE_TABLES = ['car_documents', 'expenses'];
 var MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 var ENUMS = {
-  cars: { status: ['active', 'maintenance', 'inactive', 'sold'] },
+  cars: { status: ['active', 'maintenance', 'inactive', 'sold'], ownership: ['own', 'rented', 'shared'] },
+  cash: { type: ['given', 'returned', 'to_salary', 'from_salary'], method: ['cash', 'bank', 'other'] },
+  partner_ledger: { type: ['payout', 'adjust_add', 'adjust_less'], method: ['cash', 'bank', 'other'] },
   incomes: { payment_status: ['paid', 'due'] },
   expenses: {
-    category: ['fuel', 'maintenance', 'repair', 'fine', 'toll', 'wash', 'tyre', 'insurance', 'registration', 'salary', 'other'],
-    paid_by: ['company', 'driver'],
+    category: ['fuel', 'maintenance', 'repair', 'fine', 'toll', 'wash', 'tyre', 'insurance', 'registration', 'salary', 'rent', 'other'],
+    paid_by: ['company', 'driver', 'cash'],
     status: ['pending', 'approved', 'rejected'],
   },
-  users: { role: ['admin', 'manager', 'driver'] },
+  users: { role: ['admin', 'manager', 'driver', 'partner'] },
   payroll: {
     type: ['salary', 'bonus', 'advance', 'deduction', 'payment', 'refund'],
     method: ['cash', 'bank', 'other'],
@@ -107,6 +140,9 @@ var REQUIRED = {
   expenses: ['car_id', 'category', 'amount', 'expense_date', 'paid_by', 'status'],
   daily_logs: ['car_id', 'driver_id', 'log_date', 'work_details'],
   payroll: ['driver_id', 'type', 'amount', 'entry_date'],
+  cash: ['driver_id', 'type', 'amount', 'entry_date'],
+  car_shares: ['car_id', 'partner_id', 'share_percent', 'start_date'],
+  partner_ledger: ['partner_id', 'type', 'amount', 'entry_date'],
 };
 
 var SALARY_PARTS = ['basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'];
@@ -134,7 +170,7 @@ function round2_(v) {
   return n < 0 ? -r : r;
 }
 
-var DATE_FIELDS = ['iqama_expiry', 'license_expiry', 'purchase_date', 'issue_date', 'expiry_date', 'start_date',
+var DATE_FIELDS = ['rent_start', 'rent_end', 'iqama_expiry', 'license_expiry', 'purchase_date', 'issue_date', 'expiry_date', 'start_date',
   'end_date', 'income_date', 'period_from', 'period_to', 'expense_date', 'log_date'];
 
 // ---------------------------------------------------------------- entry points
@@ -188,6 +224,15 @@ function route_(b) {
       return getFile_(me, b.table || 'car_documents', b.id);
     case 'removeFile':
       return withLock_(function () { return removeFile_(me, b.table || 'car_documents', b.id); });
+    case 'getSettings':
+      requireAdmin_(me);
+      return waSettings_();
+    case 'saveSettings':
+      requireAdmin_(me);
+      return withLock_(function () { return saveWaSettings_(b.settings || {}); });
+    case 'sendReportNow':
+      requireAdmin_(me);
+      return sendDailyReport_(b.day || null, true);
     case 'changePassword':
       return withLock_(function () { return changePassword_(me, b.oldPassword, b.newPassword); });
     default:
@@ -401,7 +446,7 @@ function requireAdmin_(u) {
 //                         archive  – see archived items and restore them (in areas they can edit)
 // A manager can never touch admins, other managers or anyone's permissions.
 
-var PERM_AREAS = ['cars', 'drivers', 'expenses', 'income', 'salary'];
+var PERM_AREAS = ['cars', 'drivers', 'expenses', 'income', 'salary', 'partners'];
 var PERM_FLAGS = ['approve', 'logins', 'reports', 'archive'];
 
 function isManager_(u) {
@@ -453,7 +498,8 @@ function need_(u, what, level) {
 /** Which permission area a row belongs to. */
 function areaOf_(table, row) {
   if (table === 'car_documents') return row.car_id ? 'cars' : 'drivers';
-  return { cars: 'cars', assignments: 'cars', daily_logs: 'drivers', incomes: 'income', expenses: 'expenses', payroll: 'salary' }[table];
+  return { cars: 'cars', assignments: 'cars', daily_logs: 'drivers', incomes: 'income', expenses: 'expenses', payroll: 'salary',
+    cash: 'salary', car_shares: 'partners', partner_ledger: 'partners' }[table];
 }
 
 /** Can this person read expenses (they also feed salary accounts and reports)? */
@@ -518,11 +564,15 @@ function loadData_(me) {
       expenses: expenses,
       logs: logs,
       payroll: readTable_('payroll'),
+      cash: readTable_('cash'),
+      shares: readTable_('car_shares'),
+      partnerLedger: readTable_('partner_ledger'),
     };
   }
 
   var live = function (r) { return !r.archived; };
   if (isManager_(me)) return managerData_(me, users, cars, docs, assignments, expenses, logs);
+  if (me.role === 'partner') return partnerData_(me, cars, expenses);
   cars = cars.filter(live);
   docs = docs.filter(live);
   expenses = expenses.filter(live);
@@ -545,7 +595,55 @@ function loadData_(me) {
     expenses: expenses.filter(function (x) { return x.driver_id === me.id; }),
     logs: logs.filter(function (l) { return l.driver_id === me.id; }),
     payroll: readTable_('payroll').filter(function (x) { return x.driver_id === me.id && !x.archived; }),
+    cash: readTable_('cash').filter(function (x) { return x.driver_id === me.id && !x.archived; }),
+    shares: [],
+    partnerLedger: [],
   };
+}
+
+/** A partner sees only the cars they hold a share in: income and approved expenses (no driver details), and their own wallet. */
+function partnerData_(me, cars, expenses) {
+  var live = function (r) { return !r.archived; };
+  var shares = readTable_('car_shares').filter(function (x) { return x.partner_id === me.id && live(x); });
+  var mine = {};
+  shares.forEach(function (x) { mine[x.car_id] = true; });
+  var strip = function (r) {
+    var o = {};
+    Object.keys(r).forEach(function (k) { if (k !== 'driver_id' && k !== 'driver_name' && k !== 'created_by' && k.indexOf('file_') !== 0) o[k] = r[k]; });
+    o.driver_id = null;
+    return o;
+  };
+  return {
+    me: publicUser_(me),
+    cars: cars.filter(function (c) { return mine[c.id] && live(c); }).map(function (c) {
+      return { id: c.id, plate_no: c.plate_no, make: c.make, model: c.model, year: c.year, color: c.color, status: c.status, ownership: c.ownership, created_at: c.created_at };
+    }),
+    profiles: [publicUser_(me)],
+    docs: [],
+    assignments: [],
+    incomes: readTable_('incomes').filter(function (x) { return mine[x.car_id] && live(x); }).map(strip),
+    expenses: expenses.filter(function (x) { return mine[x.car_id] && live(x) && x.status === 'approved'; }).map(strip),
+    logs: [],
+    payroll: [],
+    cash: [],
+    shares: shares,
+    partnerLedger: readTable_('partner_ledger').filter(function (x) { return x.partner_id === me.id && live(x); }),
+  };
+}
+
+/** Company cash a driver holds right now (can be negative = he spent his own money on top). */
+function cashBalance_(driverId) {
+  var c = 0;
+  readTable_('cash').forEach(function (x) {
+    if (x.archived || x.driver_id !== driverId) return;
+    var v = Math.round(Number(x.amount) * 100);
+    c += x.type === 'given' || x.type === 'from_salary' ? v : -v;
+  });
+  readTable_('expenses').forEach(function (e) {
+    if (e.archived || e.driver_id !== driverId || e.paid_by !== 'cash' || e.status === 'rejected') return;
+    c -= Math.round(Number(e.amount) * 100);
+  });
+  return c / 100;
 }
 
 /** A manager only receives the tables their permissions allow. */
@@ -578,6 +676,9 @@ function managerData_(me, users, cars, docs, assignments, expenses, logs) {
     expenses: canReadExpenses_(me) ? keep(expenses) : [],
     logs: can_(me, 'drivers') || can_(me, 'cars') ? keep(logs) : [],
     payroll: seePay ? keep(readTable_('payroll')) : [],
+    cash: seePay || canReadExpenses_(me) ? keep(readTable_('cash')) : [],
+    shares: can_(me, 'partners') ? keep(readTable_('car_shares')) : [],
+    partnerLedger: can_(me, 'partners') ? keep(readTable_('partner_ledger')) : [],
   };
 }
 
@@ -637,6 +738,11 @@ function decorate_(row) {
     if (row.driver_id && !d) throw new Error('Driver not found');
     row.driver_name = d ? d.full_name || d.username : null;
   }
+  if ('partner_id' in row) {
+    var pt = row.partner_id ? findBy_('users', 'id', row.partner_id) : null;
+    if (!pt || pt.role !== 'partner') throw new Error('Choose a partner');
+    row.partner_name = pt.full_name || pt.username;
+  }
   return row;
 }
 
@@ -653,6 +759,9 @@ function save_(me, table, input) {
       checkManagerSave_(me, table, row, before);
     }
     if (table === 'payroll') checkPayroll_(id ? merge_(findBy_('payroll', 'id', id) || {}, row) : row, id);
+    if (table === 'cash') checkCash_(id ? merge_(findBy_('cash', 'id', id) || {}, row) : row);
+    if (table === 'car_shares') checkShare_(id ? merge_(findBy_('car_shares', 'id', id) || {}, row) : row, id);
+    if (table === 'partner_ledger' && !(Number(id ? merge_(findBy_('partner_ledger', 'id', id) || {}, row).amount : row.amount) > 0)) throw new Error('Amount must be more than 0');
     if (table === 'cars' && row.plate_no) {
       var dup = readTable_('cars').filter(function (c) {
         return !c.archived && String(c.plate_no).toLowerCase() === String(row.plate_no).toLowerCase() && c.id !== id;
@@ -667,12 +776,13 @@ function save_(me, table, input) {
       saved = updateRow_(table, id, decorate_(merged));
       if (table === 'cars' && old.plate_no !== saved.plate_no) renamePlate_(saved);
     } else {
-      if (table === 'incomes' || table === 'expenses') row.created_by = me.id;
+      if (['incomes', 'expenses', 'payroll', 'cash', 'partner_ledger'].indexOf(table) >= 0) row.created_by = me.id;
       checkRequired_(table, row);
       saved = insertRow_(table, decorate_(row));
     }
   } else {
     // Drivers: only add new expenses and daily logs for the car they drive today
+    if (me.role !== 'driver') throw new Error('Not allowed');
     if (id) throw new Error('Only an admin can edit saved entries');
     if (table !== 'expenses' && table !== 'daily_logs') throw new Error('Not allowed');
     row.driver_id = me.id;
@@ -680,7 +790,8 @@ function save_(me, table, input) {
     if (table === 'expenses') {
       row.status = 'pending';
       row.created_by = me.id;
-      if (!row.paid_by) row.paid_by = 'driver';
+      // not chosen: use the company cash the driver holds, otherwise his own pocket
+      if (!row.paid_by) row.paid_by = cashBalance_(me.id) > 0 ? 'cash' : 'driver';
     }
     checkRequired_(table, row);
     if (!drivesNow_(me, row.car_id)) throw new Error('You are not assigned to this car today');
@@ -692,6 +803,29 @@ function save_(me, table, input) {
 }
 
 /** Salary account rules, so the driver's balance is always right. */
+function checkCash_(row) {
+  if (!(Number(row.amount) > 0)) throw new Error('Amount must be more than 0');
+  var drv = findBy_('users', 'id', row.driver_id);
+  if (!drv || drv.role !== 'driver') throw new Error('Choose a driver');
+}
+
+/** Shares of one car may not add up to more than 100% at the same time. */
+function checkShare_(row, id) {
+  var pct = Number(row.share_percent);
+  if (!(pct > 0 && pct <= 100)) throw new Error('Share must be between 0 and 100%');
+  var fee = Number(row.fee_percent || 0);
+  if (fee < 0 || fee > 100) throw new Error('Management fee must be between 0 and 100%');
+  if (row.end_date && row.end_date < row.start_date) throw new Error('End date is before start date');
+  var overlap = function (a, b) { return a.start_date <= (b.end_date || '9999') && b.start_date <= (a.end_date || '9999'); };
+  var total = pct;
+  readTable_('car_shares').forEach(function (x) {
+    if (x.archived || x.id === id || x.car_id !== row.car_id || !overlap(x, row)) return;
+    if (x.partner_id === row.partner_id) throw new Error('This partner already has a share in this car for these dates');
+    total += Number(x.share_percent);
+  });
+  if (total > 100.0001) throw new Error('Shares of this car add up to ' + (Math.round(total * 100) / 100) + '% (max 100%)');
+}
+
 function checkPayroll_(row, id) {
   if (!(Number(row.amount) > 0)) throw new Error('Amount must be more than 0');
   var drv = findBy_('users', 'id', row.driver_id);
@@ -759,6 +893,7 @@ function restore_(me, table, id) {
   if (!row) throw new Error('Record not found');
   if (isManager_(me)) need_(me, areaOf_(table, row), 'edit');
   if (table === 'payroll' && row.type === 'salary') checkPayroll_(merge_(row, { archived: false }), id);
+  if (table === 'car_shares') checkShare_(row, id);
   if (table === 'cars') {
     var dup = readTable_('cars').some(function (c) {
       return !c.archived && c.id !== id && String(c.plate_no).toLowerCase() === String(row.plate_no).toLowerCase();
@@ -1141,4 +1276,272 @@ function clientRow_(table, obj) {
   });
   if (table === 'users') return out; // publicUser_ strips secrets later
   return out;
+}
+
+
+// ---------------------------------------------------------------- daily WhatsApp report
+//
+// Uses the official WhatsApp Business Cloud API (Meta). The admin enters, in the app (Settings):
+//   access token, phone-number ID, the WhatsApp numbers to send to, the hour, what to include,
+//   PDF or picture, and (optional) an approved message template.
+// A daily time trigger runs dailyWhatsAppReport() at that hour.
+
+var WA_SECTIONS = ['summary', 'logs', 'expenses', 'income', 'pending', 'nolog', 'docs', 'cash', 'salary'];
+var WA_KEYS = ['WA_ENABLED', 'WA_TOKEN', 'WA_PHONE_ID', 'WA_TO', 'WA_HOUR', 'WA_SECTIONS', 'WA_FORMAT', 'WA_TEMPLATE', 'WA_LANG', 'WA_VERSION', 'WA_DAY', 'WA_COMPANY'];
+
+function waSettings_() {
+  var p = PropertiesService.getScriptProperties();
+  var get = function (k, d) { var v = p.getProperty(k); return v === null || v === undefined || v === '' ? d : v; };
+  return {
+    enabled: get('WA_ENABLED', 'false') === 'true',
+    hasToken: !!get('WA_TOKEN', ''),
+    phoneId: get('WA_PHONE_ID', ''),
+    to: get('WA_TO', ''),
+    hour: Number(get('WA_HOUR', '21')),
+    sections: get('WA_SECTIONS', 'summary,logs,expenses,income,pending,nolog').split(',').filter(String),
+    format: get('WA_FORMAT', 'pdf'),
+    template: get('WA_TEMPLATE', ''),
+    lang: get('WA_LANG', 'en'),
+    version: get('WA_VERSION', 'v21.0'),
+    day: get('WA_DAY', 'today'),
+    company: get('WA_COMPANY', 'MAC CAR'),
+    last: JSON.parse(get('WA_LAST', 'null')),
+  };
+}
+
+function saveWaSettings_(st) {
+  var p = PropertiesService.getScriptProperties();
+  var hour = Math.max(0, Math.min(23, Math.floor(Number(st.hour))));
+  if (isNaN(hour)) hour = 21;
+  var to = String(st.to || '').split(/[,;\n]+/).map(function (n) {
+    var d = n.replace(/[^\d]/g, '').replace(/^00/, '');
+    if (/^05\d{8}$/.test(d)) d = '966' + d.slice(1); // Saudi mobile written locally
+    return d;
+  }).filter(function (n) { return n.length >= 8; });
+  var sections = (st.sections || []).filter(function (x) { return WA_SECTIONS.indexOf(x) >= 0; });
+  if (st.enabled && !to.length) throw new Error('Add at least one WhatsApp number (with country code, e.g. 9665XXXXXXXX)');
+  if (st.enabled && !sections.length) throw new Error('Choose at least one thing to include');
+  p.setProperty('WA_ENABLED', st.enabled ? 'true' : 'false');
+  if (st.token) p.setProperty('WA_TOKEN', String(st.token).trim()); // kept if left empty
+  p.setProperty('WA_PHONE_ID', String(st.phoneId || '').trim());
+  p.setProperty('WA_TO', to.join(','));
+  p.setProperty('WA_HOUR', String(hour));
+  p.setProperty('WA_SECTIONS', sections.join(','));
+  p.setProperty('WA_FORMAT', st.format === 'image' ? 'image' : 'pdf');
+  p.setProperty('WA_TEMPLATE', String(st.template || '').trim());
+  p.setProperty('WA_LANG', String(st.lang || 'en').trim());
+  p.setProperty('WA_VERSION', String(st.version || 'v21.0').trim());
+  p.setProperty('WA_DAY', st.day === 'yesterday' ? 'yesterday' : 'today');
+  p.setProperty('WA_COMPANY', String(st.company || 'MAC CAR').trim());
+  if (st.enabled && (!p.getProperty('WA_TOKEN') || !p.getProperty('WA_PHONE_ID'))) throw new Error('Enter the access token and phone-number ID');
+  installWaTrigger_(st.enabled, hour);
+  return waSettings_();
+}
+
+function installWaTrigger_(on, hour) {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'dailyWhatsAppReport') ScriptApp.deleteTrigger(t);
+  });
+  if (on) {
+    ScriptApp.newTrigger('dailyWhatsAppReport').timeBased().atHour(hour).everyDays(1).inTimezone(Session.getScriptTimeZone()).create();
+  }
+}
+
+/** Runs every day from the time trigger. */
+function dailyWhatsAppReport() {
+  var st = waSettings_();
+  if (!st.enabled) return;
+  sendDailyReport_(null, false);
+}
+
+function shiftDay_(day, n) {
+  var d = new Date(day + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function esc_(v) {
+  return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function sar_(n) {
+  var v = Math.round(Number(n || 0) * 100) / 100;
+  var parts = Math.abs(v).toFixed(2).replace(/\.00$/, '').split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (v < 0 ? '-' : '') + 'SAR ' + parts.join('.');
+}
+
+function sumC_(rows, k) {
+  return rows.reduce(function (c, r) { return c + Math.round(Number(r[k] || 0) * 100); }, 0) / 100;
+}
+
+/** Collects the numbers for one day. Returns { day, title, summary (text), html, rows (for picture) }. */
+function buildDailyReport_(day, sections) {
+  var live = function (r) { return !r.archived; };
+  var cars = readTable_('cars').filter(live);
+  var users = readTable_('users');
+  var name = function (id) { var u = users.filter(function (x) { return x.id === id; })[0]; return u ? u.full_name || u.username : ''; };
+  var plate = function (id) { var c = cars.filter(function (x) { return x.id === id; })[0]; return c ? c.plate_no : ''; };
+  var logs = readTable_('daily_logs').filter(function (l) { return live(l) && l.log_date === day; });
+  var exps = readTable_('expenses').filter(function (e) { return live(e) && e.expense_date === day && e.status !== 'rejected'; });
+  var incs = readTable_('incomes').filter(function (i) { return live(i) && i.income_date === day; });
+  var pending = readTable_('expenses').filter(function (e) { return live(e) && e.status === 'pending'; });
+  var asg = readTable_('assignments').filter(function (a) { return live(a) && activeOn_(a, day); });
+  var has = function (k) { return sections.indexOf(k) >= 0; };
+  var company = waSettings_().company;
+  var km = logs.reduce(function (c, l) { return c + (l.end_odometer != null && l.start_odometer != null ? Math.max(0, l.end_odometer - l.start_odometer) : 0); }, 0);
+  var lines = [];
+  var rows = [];
+  var html = '<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#1e1b39;font-size:11px}h1{color:#7C5CFC;font-size:20px;margin:0}' +
+    'h2{font-size:13px;margin:16px 0 6px;color:#5B4BB7}table{border-collapse:collapse;width:100%}th,td{border:1px solid #e3defc;padding:5px;text-align:left}' +
+    'th{background:#f2f0ff}.n{text-align:right}.k{display:inline-block;margin:4px 10px 4px 0;padding:6px 10px;background:#f2f0ff;border-radius:8px}</style></head><body>';
+  html += '<h1>' + esc_(company) + ' · Daily report</h1><div>' + esc_(day) + '</div>';
+  var table = function (title, head, data) {
+    if (!data.length) return '<h2>' + esc_(title) + '</h2><div>None</div>';
+    return '<h2>' + esc_(title) + '</h2><table><tr>' + head.map(function (h) { return '<th>' + esc_(h) + '</th>'; }).join('') + '</tr>' +
+      data.map(function (r) { return '<tr>' + r.map(function (v, i) { return '<td' + (typeof v === 'number' || /^(-)?SAR /.test(v) ? ' class="n"' : '') + '>' + esc_(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+  };
+  if (has('summary')) {
+    var tIn = sumC_(incs, 'amount');
+    var tOut = sumC_(exps, 'amount');
+    lines.push('Income ' + sar_(tIn) + ' · Expenses ' + sar_(tOut) + ' · Reports ' + logs.length + '/' + asg.length + ' · ' + km + ' km');
+    html += '<h2>Summary</h2><span class="k">Income <b>' + sar_(tIn) + '</b></span><span class="k">Expenses <b>' + sar_(tOut) + '</b></span>' +
+      '<span class="k">Daily reports <b>' + logs.length + ' of ' + asg.length + '</b></span><span class="k">Km <b>' + km + '</b></span>' +
+      '<span class="k">Cash collected <b>' + sar_(sumC_(logs, 'cash_collected')) + '</b></span>';
+    rows.push(['Income', sar_(tIn)], ['Expenses', sar_(tOut)], ['Daily reports', logs.length + ' of ' + asg.length], ['Km driven', String(km)]);
+  }
+  if (has('logs')) {
+    html += table('Daily reports', ['Car', 'Driver', 'Km', 'Trips', 'Cash', 'Work'], logs.map(function (l) {
+      return [plate(l.car_id), name(l.driver_id), l.end_odometer != null && l.start_odometer != null ? Math.max(0, l.end_odometer - l.start_odometer) : '', l.trips || '', sar_(l.cash_collected), l.work_details || ''];
+    }));
+    logs.forEach(function (l) { rows.push([plate(l.car_id) + ' · ' + name(l.driver_id), (l.trips || 0) + ' trips · ' + sar_(l.cash_collected)]); });
+  }
+  if (has('nolog')) {
+    var done = {};
+    logs.forEach(function (l) { done[l.car_id] = true; });
+    var miss = asg.filter(function (a) { return !done[a.car_id]; });
+    if (miss.length) lines.push('No report: ' + miss.map(function (a) { return plate(a.car_id); }).join(', '));
+    html += table('Cars without a daily report', ['Car', 'Driver'], miss.map(function (a) { return [plate(a.car_id), name(a.driver_id)]; }));
+    miss.forEach(function (a) { rows.push(['No report: ' + plate(a.car_id), name(a.driver_id)]); });
+  }
+  if (has('expenses')) {
+    html += table('Expenses', ['Car', 'Category', 'Driver', 'Paid by', 'Status', 'Amount'], exps.map(function (e) {
+      return [plate(e.car_id), e.category, name(e.driver_id), e.paid_by === 'cash' ? 'company cash' : e.paid_by, e.status, sar_(e.amount)];
+    }));
+    exps.forEach(function (e) { rows.push(['Expense · ' + plate(e.car_id) + ' · ' + e.category, sar_(e.amount)]); });
+  }
+  if (has('income')) {
+    html += table('Income', ['Car', 'Customer', 'Payment', 'Amount'], incs.map(function (i) { return [plate(i.car_id), i.customer_name || '', i.payment_status, sar_(i.amount)]; }));
+    incs.forEach(function (i) { rows.push(['Income · ' + plate(i.car_id), sar_(i.amount)]); });
+  }
+  if (has('pending')) {
+    if (pending.length) lines.push(pending.length + ' entries waiting for approval');
+    html += table('Waiting for approval', ['Date', 'Car', 'Driver', 'Category', 'Amount'], pending.map(function (e) {
+      return [e.expense_date, plate(e.car_id), name(e.driver_id), e.category, sar_(e.amount)];
+    }));
+    if (pending.length) rows.push(['Waiting for approval', String(pending.length)]);
+  }
+  if (has('docs')) {
+    var lim = shiftDay_(day, 30);
+    var docs = readTable_('car_documents').filter(function (d) { return live(d) && d.expiry_date && d.expiry_date <= lim; });
+    html += table('Documents expiring in 30 days', ['Document', 'Car / driver', 'Expiry'], docs.map(function (d) {
+      return [d.doc_type, d.car_id ? plate(d.car_id) : name(d.driver_id), d.expiry_date];
+    }));
+    if (docs.length) rows.push(['Documents expiring (30 days)', String(docs.length)]);
+  }
+  if (has('cash')) {
+    var drivers = users.filter(function (u) { return u.role === 'driver' && u.active; });
+    var bal = drivers.map(function (u) { return [u.full_name || u.username, cashBalance_(u.id)]; }).filter(function (x) { return x[1] !== 0; });
+    html += table('Company cash with drivers', ['Driver', 'Balance'], bal.map(function (x) { return [x[0], sar_(x[1])]; }));
+    bal.forEach(function (x) { rows.push(['Cash with ' + x[0], sar_(x[1])]); });
+  }
+  if (has('salary')) {
+    var month = day.slice(0, 7);
+    var paidMonth = {};
+    readTable_('payroll').forEach(function (x) { if (!x.archived && x.type === 'salary' && x.month === month) paidMonth[x.driver_id] = true; });
+    var notAdded = users.filter(function (u) { return u.role === 'driver' && u.active && Number(u.monthly_salary) > 0 && !paidMonth[u.id]; });
+    if (Number(day.slice(8)) >= 25 && notAdded.length) lines.push(notAdded.length + ' salaries not added for ' + month);
+    html += table('Salary not added for ' + month, ['Driver', 'Monthly salary'], notAdded.map(function (u) { return [u.full_name || u.username, sar_(u.monthly_salary)]; }));
+  }
+  html += '<p style="color:#888;margin-top:18px">Sent automatically by MAC CAR</p></body></html>';
+  return { day: day, title: company + ' daily report ' + day, summary: lines.join('\n') || 'Daily report', html: html, rows: rows };
+}
+
+/** Picture of the report (a table image). Falls back to PDF when the picture cannot be made. */
+function reportImage_(rep) {
+  var dt = Charts.newDataTable().addColumn(Charts.ColumnType.STRING, rep.title).addColumn(Charts.ColumnType.STRING, '');
+  (rep.rows.length ? rep.rows : [['No data', '']]).forEach(function (r) { dt.addRow([String(r[0]), String(r[1])]); });
+  var chart = Charts.newTableChart().setDataTable(dt.build()).setDimensions(800, Math.min(2400, 60 + 32 * Math.max(1, rep.rows.length))).build();
+  return chart.getAs('image/png').setName('report-' + rep.day + '.png');
+}
+
+function waApi_(st, path, options) {
+  var url = 'https://graph.facebook.com/' + st.version + '/' + path;
+  options.muteHttpExceptions = true;
+  options.headers = { Authorization: 'Bearer ' + PropertiesService.getScriptProperties().getProperty('WA_TOKEN') };
+  var res = UrlFetchApp.fetch(url, options);
+  var body = {};
+  try { body = JSON.parse(res.getContentText() || '{}'); } catch (e) { body = { raw: res.getContentText() }; }
+  if (res.getResponseCode() >= 300 || body.error) throw new Error('WhatsApp: ' + ((body.error && body.error.message) || res.getResponseCode()));
+  return body;
+}
+
+/** Builds the report and sends it to every number. `manual` = "Send now" from the app (works even when switched off). */
+function sendDailyReport_(day, manual) {
+  var st = waSettings_();
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('WA_TOKEN') || !st.phoneId) throw new Error('WhatsApp is not set up yet (token and phone-number ID)');
+  var to = st.to.split(',').filter(String);
+  if (!to.length) throw new Error('No WhatsApp number to send to');
+  var today = today_();
+  day = day || (st.day === 'yesterday' ? shiftDay_(today, -1) : today);
+  var rep = buildDailyReport_(day, st.sections);
+
+  var blob;
+  var format = st.format;
+  var note = '';
+  if (format === 'image') {
+    try {
+      blob = reportImage_(rep);
+    } catch (e) {
+      format = 'pdf';
+      note = ' (picture failed, sent PDF: ' + e.message + ')';
+    }
+  }
+  if (format === 'pdf') blob = Utilities.newBlob(rep.html, 'text/html', 'report.html').getAs('application/pdf').setName('MAC-CAR-report-' + day + '.pdf');
+
+  var media = waApi_(st, st.phoneId + '/media', {
+    method: 'post',
+    payload: { messaging_product: 'whatsapp', type: blob.getContentType(), file: blob },
+  });
+  var results = to.map(function (n) {
+    try {
+      var msg;
+      var mediaPart = format === 'image' ? { id: media.id } : { id: media.id, filename: blob.getName() };
+      if (st.template) {
+        msg = {
+          messaging_product: 'whatsapp', to: n, type: 'template',
+          template: {
+            name: st.template, language: { code: st.lang },
+            components: [
+              { type: 'header', parameters: [format === 'image' ? { type: 'image', image: mediaPart } : { type: 'document', document: mediaPart }] },
+              { type: 'body', parameters: [{ type: 'text', text: rep.summary.replace(/\n/g, ' · ').slice(0, 1000) }] },
+            ],
+          },
+        };
+      } else {
+        var caption = rep.title + '\n' + rep.summary;
+        msg = format === 'image'
+          ? { messaging_product: 'whatsapp', to: n, type: 'image', image: { id: media.id, caption: caption } }
+          : { messaging_product: 'whatsapp', to: n, type: 'document', document: { id: media.id, filename: blob.getName(), caption: caption } };
+      }
+      waApi_(st, st.phoneId + '/messages', { method: 'post', contentType: 'application/json', payload: JSON.stringify(msg) });
+      return { to: n, ok: true };
+    } catch (e) {
+      return { to: n, ok: false, error: e.message };
+    }
+  });
+  var last = { at: new Date().toISOString(), day: day, manual: !!manual, format: format, note: note, results: results };
+  props.setProperty('WA_LAST', JSON.stringify(last));
+  return last;
 }

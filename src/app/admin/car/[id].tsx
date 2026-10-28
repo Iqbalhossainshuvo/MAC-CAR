@@ -32,6 +32,7 @@ import { ALL_PARTS, reportSpec, runReport } from '@/lib/reports';
 import { carMoney, currentAssignment } from '@/lib/stats';
 import { expenseRowProps, usePerm } from '@/lib/perms';
 import { NoAccess } from '@/components/NoAccess';
+import { CarOwnership } from '@/components/CarOwnership';
 
 export default function CarDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -130,11 +131,23 @@ export default function CarDetails() {
             <KV label="Color" value={car.color ?? '-'} />
             <KV label="Chassis / VIN" value={car.vin ?? '-'} />
             <KV label="Status" value={cap(car.status)} />
+            <KV label="Ownership" value={car.ownership === 'rented' ? 'Rented from someone' : car.ownership === 'shared' ? 'Shared with partners' : 'Company car'} />
             <KV label="Odometer" value={car.current_odometer != null ? `${num(car.current_odometer)} km` : '-'} />
             <KV label="Purchase date" value={fmtDate(car.purchase_date)} />
             {perm.seeMoney || carEdit ? <KV label="Purchase price" value={car.purchase_price != null ? money(car.purchase_price) : '-'} /> : null}
             {car.notes ? <KV label="Notes" value={car.notes} /> : null}
           </Card>
+
+          <CarOwnership
+            d={d}
+            car={car}
+            canEditCar={carEdit}
+            canPartners={perm.can('partners')}
+            canEditPartners={perm.can('partners', 'edit')}
+            canAddExpense={perm.can('expenses', 'edit') && perm.can('approve')}
+            open={form.open}
+            reload={reload}
+          />
 
           <ListCard
             title="Documents"

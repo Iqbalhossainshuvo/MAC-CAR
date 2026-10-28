@@ -5,6 +5,7 @@ import { useFormSheet } from '@/components/FormSheet';
 import { PageHeader } from '@/components/Greeting';
 import { DocRow } from '@/components/rows';
 import { SalaryAccount } from '@/components/SalaryAccount';
+import { CashAccount } from '@/components/CashAccount';
 import { Avatar, Badge, Button, C, Card, Empty, ExpiryBadge, F, KV, ListCard, Row, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -79,6 +80,7 @@ export default function DriverProfile() {
         <>
           <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginBottom: 10 }}>My salary</Text>
           <SalaryAccount d={d} driver={me} />
+          <CashAccount d={d} driver={me} />
         </>
       ) : null}
 
