@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/** The Google Apps Script web app URL (ends with /exec). */
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').trim();
+/** MAC CAR's Google Apps Script web app (the admin's Google Sheet). */
+const DEFAULT_API_URL =
+  'https://script.google.com/macros/s/AKfycbwUJEgxN9vIfQm0vNt9IXlK0H7O3LD2_OfWtZoGVrz91SraEe2tOQNImC7XThP_gUFH/exec';
+
+/** The Google Apps Script web app URL (ends with /exec). EXPO_PUBLIC_API_URL overrides the default. */
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL).trim();
 /** OAuth Web client ID for "Sign in with Google" (optional). */
 export const GOOGLE_CLIENT_ID = (process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '').trim();
 

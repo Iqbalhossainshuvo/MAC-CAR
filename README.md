@@ -65,8 +65,8 @@
 ### ধাপ ৩ — অ্যাপ অনলাইনে তোলা (Vercel, ফ্রি)
 
 1. [vercel.com](https://vercel.com)-এ লগিন করে **Add New → Project** থেকে GitHub repo `MAC-CAR` ইমপোর্ট করুন।
-2. **Environment Variables**-এ যোগ করুন:
-   - `EXPO_PUBLIC_API_URL` = ধাপ ২-এর `/exec` URL
+2. MAC CAR-এর Apps Script লিংক কোডে (`src/lib/api.ts`) আগেই বসানো আছে, তাই কোনো Environment Variable না দিলেও চলবে। অন্য শিট ব্যবহার করতে চাইলে:
+   - `EXPO_PUBLIC_API_URL` = নতুন `/exec` URL
    - `EXPO_PUBLIC_GOOGLE_CLIENT_ID` = (ঐচ্ছিক, ধাপ ৪ দেখুন)
 3. **Deploy** চাপুন। Build ও output সেটিং `vercel.json`-এ দেওয়া আছে।
 4. আপনার লিংক খুলে `admin` + ধাপ ১-এর পাসওয়ার্ড দিয়ে লগিন করুন।
