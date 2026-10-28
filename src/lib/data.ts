@@ -79,9 +79,21 @@ export async function loadFleet(): Promise<FleetData> {
 
 // ---------------------------------------------------------------- store state
 
+export interface UploadFile {
+  name: string;
+  mimeType: string;
+  base64: string;
+  size: number;
+}
+
 type Op =
   | { opId: string; kind: 'save'; table: Table; row: Record<string, any>; tempId?: string }
-  | { opId: string; kind: 'remove'; table: Table; id: string };
+  | { opId: string; kind: 'remove'; table: Table; id: string }
+  | { opId: string; kind: 'restore'; table: Table; id: string }
+  | { opId: string; kind: 'upload'; table: 'car_documents' | 'expenses'; id: string; file: UploadFile };
+
+/** Files waiting to upload, so they can be viewed at once (key: table:id) */
+export const pendingFiles = new Map<string, UploadFile>();
 
 let state: FleetData = EMPTY_FLEET;
 let userKey: string | null = null;
@@ -239,7 +251,9 @@ async function processOutbox() {
   let failed = false;
   try {
     while (outbox.length && userKey) {
-      const op = mapIds(outbox[0]);
+      const orig = outbox[0];
+      const op = mapIds(orig);
+      const fileKey = orig.kind === 'upload' ? `${orig.table}:${orig.id}` : '';
       try {
         if (op.kind === 'save') {
           const saved = await api<Record<string, any>>('save', { table: op.table, row: op.row });
@@ -249,8 +263,13 @@ async function processOutbox() {
             swapId(op.tempId, saved.id);
           }
           state = { ...state, [key]: (state[key] as any[]).map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) };
+        } else if (op.kind === 'upload') {
+          const saved = await api<Record<string, any>>('uploadFile', { table: op.table, id: op.id, ...op.file });
+          const key = LIST_OF[op.table];
+          state = { ...state, [key]: (state[key] as any[]).map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) };
+          pendingFiles.delete(fileKey);
         } else {
-          await api('remove', { table: op.table, id: op.id });
+          await api(op.kind, { table: op.table, id: op.id });
         }
         outbox.shift();
         offline = false;
@@ -274,7 +293,11 @@ async function processOutbox() {
         // the server refused this change: drop it, tell the user, reload real data
         outbox.shift();
         persistSoon();
-        notify(op.kind === 'remove' ? 'Could not delete' : 'Could not save', `${err?.message ?? err}\n\nThe change was undone.`);
+        if (fileKey) pendingFiles.delete(fileKey);
+        notify(
+          op.kind === 'remove' ? 'Could not delete' : op.kind === 'upload' ? 'File upload failed' : op.kind === 'restore' ? 'Could not restore' : 'Could not save',
+          `${err?.message ?? err}\n\nThe change was undone.`,
+        );
         lastSync = 0;
       }
     }
@@ -306,6 +329,23 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
 }
 
 // ---------------------------------------------------------------- hooks
+
+const live = <T extends { archived?: boolean }>(list: T[]) => (list.some((r) => r.archived) ? list.filter((r) => !r.archived) : list);
+
+export function withoutArchived(d: FleetData): FleetData {
+  const gone = new Set(d.cars.filter((c) => c.archived).map((c) => c.id));
+  const ofLiveCar = <T extends { car_id: string | null }>(list: T[]) => (gone.size ? list.filter((r) => !r.car_id || !gone.has(r.car_id)) : list);
+  return {
+    ...d,
+    cars: live(d.cars),
+    docs: ofLiveCar(live(d.docs)),
+    assignments: ofLiveCar(live(d.assignments)),
+    incomes: live(d.incomes),
+    expenses: live(d.expenses),
+    logs: live(d.logs),
+    payroll: live(d.payroll),
+  };
+}
 
 export function useSyncStatus() {
   const [, force] = useReducer((x: number) => x + 1, 0);
@@ -339,19 +379,24 @@ export function useFleet() {
     }, []),
   );
 
-  const data = state;
+  const all = state;
+  // Archived rows are hidden everywhere (they stay in the sheet and on the Archive page)
+  const data = useMemo(() => withoutArchived(all), [all]);
   const lookups = useMemo(() => {
-    const carById = new Map(data.cars.map((c) => [c.id, c]));
-    const personById = new Map(data.profiles.map((p) => [p.id, p]));
+    // names of archived cars still show on old records
+    const carById = new Map(all.cars.map((c) => [c.id, c]));
+    const personById = new Map(all.profiles.map((p) => [p.id, p]));
     // links opened with a temporary id keep working after the real id arrives
     for (const [tmp, real] of idMap) {
       if (carById.has(real)) carById.set(tmp, carById.get(real)!);
     }
     return { carById, personById };
-  }, [data]);
+  }, [all]);
 
   return {
     data,
+    /** everything including archived rows (Archive page) */
+    all,
     /** spinner for pull-to-refresh */
     loading: syncing && manual,
     error: hydrated && !data.cars.length && !data.profiles.length ? syncError : null,
@@ -380,38 +425,66 @@ function defaults(table: Table, row: Record<string, any>): Record<string, any> {
 }
 
 /** Insert (no id) or update (with id) a row. The screen updates at once; Google Sheets is updated in the background. */
-export async function saveRow(table: Table, row: Record<string, any>): Promise<boolean> {
+export async function saveRow(table: Table, row: Record<string, any>, file?: UploadFile | null): Promise<boolean> {
   const key = LIST_OF[table];
   const list = state[key] as any[];
   if (row.id) {
     const id = idMap.get(row.id) ?? row.id;
     setState(sortFleet({ ...state, [key]: list.map((r) => (r.id === id ? { ...r, ...row, id } : r)) }));
     enqueue({ opId: newId(), kind: 'save', table, row: { ...row, id } });
+    if (file && (table === 'expenses' || table === 'car_documents')) queueUpload(table, id, file);
   } else {
     const tempId = newId();
     // Admin values win over defaults; for drivers the server-enforced values (own id, pending) win.
     const local = state.me?.role === 'admin' ? { ...defaults(table, row), ...row, id: tempId } : { ...row, ...defaults(table, row), id: tempId };
     setState(sortFleet({ ...state, [key]: [local, ...list] }));
     enqueue({ opId: newId(), kind: 'save', table, row, tempId });
+    if (file && (table === 'expenses' || table === 'car_documents')) queueUpload(table, tempId, file);
   }
   return true;
 }
 
+/**
+ * Attach a file (receipt / document scan). Shows at once, uploads in the background
+ * after the row itself is saved — also works offline and for brand-new rows.
+ */
+export function queueUpload(table: 'car_documents' | 'expenses', id: string, file: UploadFile) {
+  const real = idMap.get(id) ?? id;
+  const key = LIST_OF[table];
+  pendingFiles.set(`${table}:${id}`, file);
+  setState({
+    ...state,
+    [key]: (state[key] as any[]).map((r) =>
+      r.id === real ? { ...r, file_id: 'pending', file_name: file.name, file_type: file.mimeType, file_size: file.size } : r,
+    ),
+  });
+  enqueue({ opId: newId(), kind: 'upload', table, id: real, file });
+}
+
+/** A file that is still waiting to upload (so it can be opened right away). */
+export function pendingFileFor(table: string, id: string): UploadFile | undefined {
+  const direct = pendingFiles.get(`${table}:${id}`);
+  if (direct) return direct;
+  for (const [tmp, real] of idMap) if (real === id && pendingFiles.has(`${table}:${tmp}`)) return pendingFiles.get(`${table}:${tmp}`);
+  return undefined;
+}
+
+/** "Delete" = move to Archive: hidden everywhere, kept in the sheet, can be restored. */
 export async function removeRow(table: Table, id: string): Promise<boolean> {
   const real = idMap.get(id) ?? id;
   const key = LIST_OF[table];
-  let next: FleetData = { ...state, [key]: (state[key] as any[]).filter((r) => r.id !== real) };
-  if (table === 'cars') {
-    // documents, driver history and daily reports of the car go with it
-    next = {
-      ...next,
-      docs: next.docs.filter((d) => d.car_id !== real),
-      assignments: next.assignments.filter((a) => a.car_id !== real),
-      logs: next.logs.filter((l) => l.car_id !== real),
-    };
-  }
-  setState(next);
+  const stamp = { archived: true, archived_at: new Date().toISOString(), archived_by: state.me?.id ?? null };
+  setState({ ...state, [key]: (state[key] as any[]).map((r) => (r.id === real ? { ...r, ...stamp } : r)) });
   enqueue({ opId: newId(), kind: 'remove', table, id: real });
+  return true;
+}
+
+export async function restoreRow(table: Table, id: string): Promise<boolean> {
+  const key = LIST_OF[table];
+  setState(
+    sortFleet({ ...state, [key]: (state[key] as any[]).map((r) => (r.id === id ? { ...r, archived: false, archived_at: null, archived_by: null } : r)) }),
+  );
+  enqueue({ opId: newId(), kind: 'restore', table, id });
   return true;
 }
 

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Text } from 'react-native';
 
+import { fileSize, pickFile, takePhoto, type PickedFile } from '@/lib/files';
 import { isValidDate } from '@/lib/format';
 
-import { C, DateInput, Field, Input, Select, Sheet, type Option } from './ui';
+import { Button, C, DateInput, F, Field, IconBtn, Input, Row, Select, Sheet, hexA, type Option } from './ui';
 
-export type FieldType = 'text' | 'number' | 'date' | 'select' | 'multiline' | 'email' | 'password' | 'phone';
+export type FieldType = 'text' | 'number' | 'date' | 'select' | 'multiline' | 'email' | 'password' | 'phone' | 'file';
 
 export interface FieldDef {
   key: string;
@@ -24,6 +25,7 @@ type Values = Record<string, string>;
 function toStrings(initial: Record<string, any>, fields: FieldDef[]): Values {
   const v: Values = {};
   for (const f of fields) {
+    if (f.type === 'file') continue;
     const raw = initial[f.key];
     v[f.key] = raw === null || raw === undefined ? '' : String(raw);
   }
@@ -34,6 +36,7 @@ function toStrings(initial: Record<string, any>, fields: FieldDef[]): Values {
 function toDb(values: Values, fields: FieldDef[]): Record<string, any> {
   const out: Record<string, any> = {};
   for (const f of fields) {
+    if (f.type === 'file') continue;
     const v = values[f.key]?.trim() ?? '';
     if (f.type === 'number') out[f.key] = v === '' ? null : Number(v.replace(/,/g, ''));
     else if (f.type === 'password') out[f.key] = values[f.key] ?? '';
@@ -64,6 +67,7 @@ export function FormSheet({
 }) {
   const [values, setValues] = useState<Values>(() => toStrings(initial, fields));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [files, setFiles] = useState<Record<string, PickedFile | null>>({});
   const [saving, setSaving] = useState(false);
 
 
@@ -87,7 +91,9 @@ export function FormSheet({
     if (!validate()) return;
     setSaving(true);
     try {
-      const ok = await onSubmit(toDb(values, fields));
+      const data = toDb(values, fields);
+      for (const f of fields) if (f.type === 'file' && files[f.key]) data[f.key] = files[f.key];
+      const ok = await onSubmit(data);
       if (ok) onClose();
     } finally {
       setSaving(false);
@@ -98,7 +104,9 @@ export function FormSheet({
     <Sheet visible={visible} title={title} onClose={onClose} onSave={save} saving={saving} saveText={saveText}>
       {fields.map((f) => (
         <Field key={f.key} label={f.label + (f.required ? ' *' : '')} error={errors[f.key]}>
-          {f.type === 'select' ? (
+          {f.type === 'file' ? (
+            <FilePickField value={files[f.key] ?? null} onChange={(v) => setFiles((prev) => ({ ...prev, [f.key]: v }))} />
+          ) : f.type === 'select' ? (
             <Select
               value={values[f.key] ?? ''}
               options={f.options ?? []}
@@ -166,4 +174,24 @@ export function useFormSheet() {
     />
   );
   return { open, close: () => setCfg(null), element };
+}
+
+/** Attach a file inside a form (e.g. an expense receipt). */
+function FilePickField({ value, onChange }: { value: PickedFile | null; onChange: (v: PickedFile | null) => void }) {
+  if (value) {
+    return (
+      <Row style={{ gap: 10, padding: 10, borderRadius: 14, backgroundColor: hexA(C.primary, 0.07) }}>
+        <Text style={{ flex: 1, color: C.text, fontFamily: F.semi, fontSize: 13 }} numberOfLines={1}>
+          {value.name} · {fileSize(value.size)}
+        </Text>
+        <IconBtn icon="close" color={C.muted} label="Remove attached file" onPress={() => onChange(null)} />
+      </Row>
+    );
+  }
+  return (
+    <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+      <Button small variant="ghost" icon="cloud-upload-outline" title="Choose file" onPress={async () => onChange(await pickFile())} />
+      <Button small variant="ghost" icon="camera-outline" title="Take photo" onPress={async () => onChange(await takePhoto())} />
+    </Row>
+  );
 }

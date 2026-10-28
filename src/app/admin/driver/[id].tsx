@@ -81,7 +81,7 @@ export default function DriverDetails() {
   };
 
   const expenseRow = (e: (typeof v.work)[number]) => (
-    <ExpenseRow
+    <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
       key={e.id}
       e={e}
       cars={carById}

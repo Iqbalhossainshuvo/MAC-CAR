@@ -228,7 +228,7 @@ export default function Dashboard() {
           <ListCard title="Driver entries to approve" accent={C.magenta}>
             {stats.pending.length ? (
               stats.pending.slice(0, 10).map((e) => (
-                <ExpenseRow
+                <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
                   key={e.id}
                   e={e}
                   cars={carById}

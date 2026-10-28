@@ -5,8 +5,11 @@ import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
 import { api } from './api';
-import { notify, putLocal, realId } from './data';
-import type { CarDocument } from './types';
+import { notify, pendingFileFor, putLocal, queueUpload, realId } from './data';
+import type { WithFile } from './types';
+
+export type FileTable = 'car_documents' | 'expenses';
+type FileRow = WithFile & { id: string };
 
 export const MAX_FILE_MB = 10;
 
@@ -81,22 +84,16 @@ export async function takePhoto(): Promise<PickedFile | null> {
   return { name: a.fileName ?? `photo-${stamp}.jpg`, mimeType: a.mimeType ?? 'image/jpeg', base64, size };
 }
 
-/** Upload (or replace) the file of a document. */
-export async function uploadDocFile(doc: CarDocument, f: PickedFile): Promise<boolean> {
-  try {
-    const saved = await api<CarDocument>('uploadFile', { id: realId(doc.id), name: f.name, mimeType: f.mimeType, base64: f.base64 });
-    putLocal('car_documents', saved);
-    return true;
-  } catch (e: any) {
-    notify('Upload failed', e?.message);
-    return false;
-  }
+/** Upload (or replace) the file of a document or expense. Queued: works offline and for new rows. */
+export function uploadRowFile(table: FileTable, row: FileRow, f: PickedFile) {
+  queueUpload(table, row.id, f);
+  return true;
 }
 
-export async function removeDocFile(doc: CarDocument): Promise<boolean> {
+export async function removeRowFile(table: FileTable, row: FileRow): Promise<boolean> {
   try {
-    const saved = await api<CarDocument>('removeFile', { id: realId(doc.id) });
-    putLocal('car_documents', saved);
+    const saved = await api<FileRow>('removeFile', { table, id: realId(row.id) });
+    putLocal(table, saved);
     return true;
   } catch (e: any) {
     notify('Could not remove the file', e?.message);
@@ -107,11 +104,13 @@ export async function removeDocFile(doc: CarDocument): Promise<boolean> {
 // Files already opened in this session, so viewing again is instant
 const memo = new Map<string, LoadedFile>();
 
-export async function loadDocFile(doc: CarDocument): Promise<LoadedFile | null> {
-  const key = `${doc.id}:${doc.file_id}`;
+export async function loadRowFile(table: FileTable, row: FileRow): Promise<LoadedFile | null> {
+  const waiting = pendingFileFor(table, row.id);
+  if (waiting) return { name: waiting.name, mimeType: waiting.mimeType, base64: waiting.base64 };
+  const key = `${table}:${row.id}:${row.file_id}`;
   if (memo.has(key)) return memo.get(key)!;
   try {
-    const f = await api<LoadedFile>('getFile', { id: realId(doc.id) });
+    const f = await api<LoadedFile>('getFile', { table, id: realId(row.id) });
     memo.set(key, f);
     return f;
   } catch (e: any) {

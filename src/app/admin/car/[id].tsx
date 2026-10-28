@@ -69,7 +69,7 @@ export default function CarDetails() {
   };
 
   const removeCar = async () => {
-    if (!(await confirm(`Delete car ${car.plate_no}?`, 'Documents and driver history of this car are deleted too.'))) return;
+    if (!(await confirm(`Delete car ${car.plate_no}?`, 'The car moves to the Archive and is hidden from lists. Its income, expenses and documents stay in your records. You can restore it from Archive.'))) return;
     if (await removeRow('cars', car.id)) router.replace('/admin/cars');
   };
 
@@ -212,7 +212,7 @@ export default function CarDetails() {
           >
             {v.expenses.length ? (
               v.expenses.slice(0, 40).map((e) => (
-                <ExpenseRow
+                <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
                   key={e.id}
                   e={e}
                   cars={carById}

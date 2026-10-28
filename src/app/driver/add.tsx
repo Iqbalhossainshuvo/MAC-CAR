@@ -29,7 +29,8 @@ export default function DriverAdd() {
       saveText: 'Send',
       footer: 'The admin will check and approve this entry.',
       onSubmit: async (v) => {
-        const ok = await saveRow('expenses', v);
+        const { receipt, ...row } = v;
+        const ok = await saveRow('expenses', row, receipt ?? null);
         if (ok) {
           setDone('Expense sent to admin for approval.');
           reload();

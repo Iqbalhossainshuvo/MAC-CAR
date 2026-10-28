@@ -29,49 +29,58 @@ var TABLES = {
   cars: {
     sheet: 'Cars',
     cols: ['id', 'plate_no', 'make', 'model', 'year', 'color', 'vin', 'status', 'purchase_date',
-      'purchase_price', 'current_odometer', 'notes', 'created_at'],
+      'purchase_price', 'current_odometer', 'notes', 'created_at', 'archived', 'archived_at', 'archived_by'],
     num: ['year', 'purchase_price', 'current_odometer'],
+    bool: ['archived'],
   },
   car_documents: {
     sheet: 'Documents',
     cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'doc_type', 'doc_number', 'issue_date', 'expiry_date', 'notes',
-      'file_id', 'file_name', 'file_type', 'file_size', 'created_at'],
+      'file_id', 'file_name', 'file_type', 'file_size', 'created_at', 'archived', 'archived_at', 'archived_by'],
     num: ['file_size'],
+    bool: ['archived'],
   },
   assignments: {
     sheet: 'Assignments',
-    cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'start_date', 'end_date', 'notes', 'created_at'],
+    cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'start_date', 'end_date', 'notes', 'created_at', 'archived', 'archived_at', 'archived_by'],
     num: [],
+    bool: ['archived'],
   },
   incomes: {
     sheet: 'Income',
     cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'customer_name', 'amount', 'income_date',
-      'period_from', 'period_to', 'payment_status', 'description', 'created_by', 'created_at'],
+      'period_from', 'period_to', 'payment_status', 'description', 'created_by', 'created_at', 'archived', 'archived_at', 'archived_by'],
     num: ['amount'],
+    bool: ['archived'],
   },
   expenses: {
     sheet: 'Expenses',
     cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'category', 'amount', 'expense_date',
-      'description', 'reference', 'odometer', 'paid_by', 'status', 'created_by', 'created_at', 'waived'],
-    num: ['amount', 'odometer'],
-    bool: ['waived'],
+      'description', 'reference', 'odometer', 'paid_by', 'status', 'created_by', 'created_at', 'waived', 'archived', 'archived_at', 'archived_by',
+      'file_id', 'file_name', 'file_type', 'file_size'],
+    num: ['amount', 'odometer', 'file_size'],
+    bool: ['waived', 'archived'],
   },
   payroll: {
     sheet: 'Payroll',
     cols: ['id', 'driver_id', 'driver_name', 'type', 'amount', 'entry_date', 'month', 'method', 'description',
-      'created_by', 'created_at'],
+      'created_by', 'created_at', 'archived', 'archived_at', 'archived_by'],
     num: ['amount'],
+    bool: ['archived'],
   },
   daily_logs: {
     sheet: 'DailyLogs',
     cols: ['id', 'driver_id', 'driver_name', 'car_id', 'car_plate', 'log_date', 'start_odometer', 'end_odometer',
-      'trips', 'cash_collected', 'work_details', 'created_at'],
+      'trips', 'cash_collected', 'work_details', 'created_at', 'archived', 'archived_at', 'archived_by'],
     num: ['start_odometer', 'end_odometer', 'trips', 'cash_collected'],
+    bool: ['archived'],
   },
 };
 
 var HIDDEN_USER_FIELDS = ['password_hash', 'salt', 'set_password'];
-var READ_ONLY = ['id', 'created_at', 'car_plate', 'driver_name', 'created_by', 'file_id', 'file_name', 'file_type', 'file_size'];
+var READ_ONLY = ['id', 'created_at', 'car_plate', 'driver_name', 'created_by', 'file_id', 'file_name', 'file_type', 'file_size',
+  'archived', 'archived_at', 'archived_by'];
+var FILE_TABLES = ['car_documents', 'expenses'];
 var MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 var ENUMS = {
@@ -156,12 +165,14 @@ function route_(b) {
       return withLock_(function () { return remove_(me, b.table, b.id); });
     case 'saveUser':
       return withLock_(function () { return saveUser_(me, b.user || {}); });
+    case 'restore':
+      return withLock_(function () { return restore_(me, b.table, b.id); });
     case 'uploadFile':
-      return withLock_(function () { return uploadFile_(me, b.id, b.name, b.mimeType, b.base64); });
+      return withLock_(function () { return uploadFile_(me, b.table || 'car_documents', b.id, b.name, b.mimeType, b.base64); });
     case 'getFile':
-      return getFile_(me, b.id);
+      return getFile_(me, b.table || 'car_documents', b.id);
     case 'removeFile':
-      return withLock_(function () { return removeFile_(me, b.id); });
+      return withLock_(function () { return removeFile_(me, b.table || 'car_documents', b.id); });
     case 'changePassword':
       return withLock_(function () { return changePassword_(me, b.oldPassword, b.newPassword); });
     default:
@@ -389,8 +400,13 @@ function loadData_(me) {
     };
   }
 
+  var live = function (r) { return !r.archived; };
+  cars = cars.filter(live);
+  docs = docs.filter(live);
+  expenses = expenses.filter(live);
+  logs = logs.filter(live);
   var day = today_();
-  var mine = assignments.filter(function (a) { return a.driver_id === me.id; });
+  var mine = assignments.filter(function (a) { return a.driver_id === me.id && !a.archived; });
   var everCar = {};
   var nowCar = {};
   mine.forEach(function (a) {
@@ -406,14 +422,14 @@ function loadData_(me) {
     incomes: [],
     expenses: expenses.filter(function (x) { return x.driver_id === me.id; }),
     logs: logs.filter(function (l) { return l.driver_id === me.id; }),
-    payroll: readTable_('payroll').filter(function (x) { return x.driver_id === me.id; }),
+    payroll: readTable_('payroll').filter(function (x) { return x.driver_id === me.id && !x.archived; }),
   };
 }
 
 function drivesNow_(me, carId) {
   var day = today_();
   return readTable_('assignments').some(function (a) {
-    return a.driver_id === me.id && a.car_id === carId && activeOn_(a, day);
+    return a.driver_id === me.id && a.car_id === carId && !a.archived && activeOn_(a, day);
   });
 }
 
@@ -476,7 +492,7 @@ function save_(me, table, input) {
     if (table === 'payroll') checkPayroll_(id ? merge_(findBy_('payroll', 'id', id) || {}, row) : row, id);
     if (table === 'cars' && row.plate_no) {
       var dup = readTable_('cars').filter(function (c) {
-        return String(c.plate_no).toLowerCase() === String(row.plate_no).toLowerCase() && c.id !== id;
+        return !c.archived && String(c.plate_no).toLowerCase() === String(row.plate_no).toLowerCase() && c.id !== id;
       });
       if (dup.length) throw new Error('A car with plate ' + row.plate_no + ' already exists');
     }
@@ -520,7 +536,7 @@ function checkPayroll_(row, id) {
   if (row.type === 'salary') {
     if (!/^\d{4}-\d{2}$/.test(String(row.month || ''))) throw new Error('Choose the salary month');
     var dup = readTable_('payroll').some(function (x) {
-      return x.type === 'salary' && x.driver_id === row.driver_id && x.month === row.month && x.id !== id;
+      return x.type === 'salary' && !x.archived && x.driver_id === row.driver_id && x.month === row.month && x.id !== id;
     });
     if (dup) throw new Error('Salary for ' + row.month + ' is already added for ' + (drv.full_name || drv.username));
   }
@@ -550,6 +566,10 @@ function bumpOdometer_(table, row) {
   }
 }
 
+/**
+ * "Delete" never erases anything: the row is marked archived (hidden in the app, kept in the sheet)
+ * and can be restored from the Archive page.
+ */
 function remove_(me, table, id) {
   if (!TABLES[table] || table === 'users') throw new Error('Unknown table');
   var row = findBy_(table, 'id', id);
@@ -561,18 +581,22 @@ function remove_(me, table, id) {
     var okLog = table === 'daily_logs' && own && row.log_date === today_();
     if (!okExpense && !okLog) throw new Error('Not allowed');
   }
+  return updateRow_(table, id, merge_(row, { archived: true, archived_at: new Date().toISOString(), archived_by: me.id }));
+}
 
+function restore_(me, table, id) {
+  requireAdmin_(me);
+  if (!TABLES[table] || table === 'users') throw new Error('Unknown table');
+  var row = findBy_(table, 'id', id);
+  if (!row) throw new Error('Record not found');
+  if (table === 'payroll' && row.type === 'salary') checkPayroll_(merge_(row, { archived: false }), id);
   if (table === 'cars') {
-    var money = readTable_('incomes').concat(readTable_('expenses')).some(function (r) { return r.car_id === id; });
-    if (money) throw new Error('This car has income/expense records. Set its status to "inactive" or "sold" instead of deleting.');
-    readTable_('car_documents').forEach(function (d) { if (d.car_id === id) trashFile_(d.file_id); });
-    deleteWhere_('car_documents', 'car_id', id);
-    deleteWhere_('assignments', 'car_id', id);
-    deleteWhere_('daily_logs', 'car_id', id);
+    var dup = readTable_('cars').some(function (c) {
+      return !c.archived && c.id !== id && String(c.plate_no).toLowerCase() === String(row.plate_no).toLowerCase();
+    });
+    if (dup) throw new Error('Another car with plate ' + row.plate_no + ' exists. Archive or rename it first.');
   }
-  if (table === 'car_documents') trashFile_(row.file_id);
-  deleteRow_(table, id);
-  return { id: id };
+  return updateRow_(table, id, merge_(row, { archived: false, archived_at: null, archived_by: null }));
 }
 
 function saveUser_(me, input) {
@@ -675,19 +699,46 @@ function canSeeDoc_(me, doc) {
   return doc.driver_id === me.id || (doc.car_id && drivesNow_(me, doc.car_id));
 }
 
-function uploadFile_(me, docId, name, mimeType, base64) {
-  requireAdmin_(me);
-  var doc = findBy_('car_documents', 'id', docId);
-  if (!doc) throw new Error('Document not found');
+/** Old files are never deleted from Drive — they are renamed so the history stays. */
+function retireFile_(fileId, why) {
+  if (!fileId) return;
+  try {
+    var f = DriveApp.getFileById(fileId);
+    f.setName('[' + why + '] ' + f.getName());
+  } catch (e) {
+    // gone already
+  }
+}
+
+function fileRow_(me, table, id, forWrite) {
+  if (FILE_TABLES.indexOf(table) < 0) throw new Error('Files are not supported here');
+  var row = findBy_(table, 'id', id);
+  if (!row) throw new Error('Record not found');
+  if (isAdmin_(me)) return row;
+  if (table === 'car_documents') {
+    if (forWrite) throw new Error('Only an admin can change document files');
+    if (!canSeeDoc_(me, row)) throw new Error('Not allowed');
+    return row;
+  }
+  // expenses: the driver who entered it can attach / view the receipt
+  if (row.driver_id !== me.id || row.archived) throw new Error('Not allowed');
+  if (forWrite === 'remove' && row.status !== 'pending') throw new Error('Only the admin can change the receipt after approval');
+  return row;
+}
+
+function uploadFile_(me, table, id, name, mimeType, base64) {
+  var row = fileRow_(me, table, id, 'upload');
   if (!base64) throw new Error('No file received');
   var bytes = Utilities.base64Decode(String(base64).replace(/^data:[^,]*,/, ''));
   if (bytes.length > MAX_FILE_BYTES) throw new Error('File is too big (max 10 MB)');
-  var label = [doc.car_plate || doc.driver_name || '', doc.doc_type].filter(String).join(' - ');
-  var cleanName = String(name || 'document').replace(/[\\/:*?"<>|]+/g, '_');
+  var label = table === 'expenses'
+    ? ['Receipt', row.car_plate || '', row.expense_date || '', row.driver_name || ''].filter(String).join(' - ')
+    : [row.car_plate || row.driver_name || '', row.doc_type].filter(String).join(' - ');
+  var cleanName = String(name || 'file').replace(/[\\/:*?"<>|]+/g, '_');
   var blob = Utilities.newBlob(bytes, mimeType || 'application/octet-stream', label ? label + ' - ' + cleanName : cleanName);
   var file = filesFolder_().createFile(blob);
-  trashFile_(doc.file_id); // replacing an older file
-  return updateRow_('car_documents', doc.id, merge_(doc, {
+  retireFile_(row.file_id, 'replaced');
+  return updateRow_(table, row.id, merge_(row, {
     file_id: file.getId(),
     file_name: cleanName,
     file_type: blob.getContentType(),
@@ -695,20 +746,17 @@ function uploadFile_(me, docId, name, mimeType, base64) {
   }));
 }
 
-function getFile_(me, docId) {
-  var doc = findBy_('car_documents', 'id', docId);
-  if (!doc || !doc.file_id) throw new Error('No file attached');
-  if (!canSeeDoc_(me, doc)) throw new Error('Not allowed');
-  var blob = DriveApp.getFileById(doc.file_id).getBlob();
-  return { name: doc.file_name, mimeType: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
+function getFile_(me, table, id) {
+  var row = fileRow_(me, table, id, false);
+  if (!row.file_id) throw new Error('No file attached');
+  var blob = DriveApp.getFileById(row.file_id).getBlob();
+  return { name: row.file_name, mimeType: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
 }
 
-function removeFile_(me, docId) {
-  requireAdmin_(me);
-  var doc = findBy_('car_documents', 'id', docId);
-  if (!doc) throw new Error('Document not found');
-  trashFile_(doc.file_id);
-  return updateRow_('car_documents', doc.id, merge_(doc, { file_id: null, file_name: null, file_type: null, file_size: null }));
+function removeFile_(me, table, id) {
+  var row = fileRow_(me, table, id, 'remove');
+  retireFile_(row.file_id, 'removed');
+  return updateRow_(table, row.id, merge_(row, { file_id: null, file_name: null, file_type: null, file_size: null }));
 }
 
 // ---------------------------------------------------------------- sheet helpers

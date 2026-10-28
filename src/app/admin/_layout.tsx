@@ -120,6 +120,7 @@ export default function AdminLayout() {
       <Drawer.Screen name="income" options={{ title: 'Income', drawerLabel: 'Income', drawerIcon: icon('trending-up') }} />
       <Drawer.Screen name="expenses" options={{ title: 'Expenses', drawerLabel: 'Expense', drawerIcon: icon('trending-down') }} />
       <Drawer.Screen name="reports" options={{ title: 'Reports', drawerLabel: 'Report', drawerIcon: icon('document-text') }} />
+      <Drawer.Screen name="archive" options={{ title: 'Archive', drawerLabel: 'Archive', drawerIcon: icon('archive') }} />
       <Drawer.Screen name="users" options={{ title: 'Users', drawerLabel: 'User', drawerIcon: icon('key') }} />
       <Drawer.Screen
         name="car/[id]"

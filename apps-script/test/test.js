@@ -26,8 +26,12 @@ r=call({action:'save',token:D,table:'daily_logs',row:{car_id:car,log_date:'2026-
 r=call({action:'data',token:A});ok(r.data.cars.find(c=>c.id===car).current_odometer===12500,'odometer bumped');
 ok(r.data.profiles.every(p=>!p.password_hash&&!p.salt),'no hashes in admin data');
 r=call({action:'save',token:A,table:'expenses',row:{id:exp,status:'approved'}});ok(r.ok&&r.data.status==='approved'&&r.data.amount===300,'admin approves');
-r=call({action:'remove',token:A,table:'cars',id:car});ok(!r.ok,'car w/ money not deletable');
-r=call({action:'remove',token:A,table:'cars',id:car2});ok(r.ok,'empty car deleted');
+r=call({action:'remove',token:A,table:'cars',id:car2});ok(r.ok&&r.data.archived===true,'delete = archive (car hidden, not erased)');
+ok(sheets['Cars'].data.some(x=>x[1]==='XYZ 2'),'archived car still in the sheet');
+r=call({action:'save',token:A,table:'cars',row:{plate_no:'XYZ 2',status:'active'}});ok(r.ok,'plate of archived car can be reused');const car3=r.data.id;
+r=call({action:'restore',token:A,table:'cars',id:car2});ok(!r.ok&&/Another car/.test(r.error),'restore blocked while plate is taken');
+call({action:'remove',token:A,table:'cars',id:car3});
+r=call({action:'restore',token:A,table:'cars',id:car2});ok(r.ok&&r.data.archived===false,'restore archived car');
 r=call({action:'saveUser',token:A,user:{id:drv,full_name:'Karim U'}});
 ok(sheets['Expenses'].data[1][4]==='Karim U','driver name synced in sheet');
 r=call({action:'saveUser',token:A,user:{id:drv,active:false}});r=call({action:'data',token:D});ok(!r.ok,'inactive driver blocked');
@@ -54,14 +58,15 @@ const b64=Buffer.from('hello pdf').toString('base64');
 r=call({action:'uploadFile',token:A2,id:doc.id,name:'istimara.pdf',mimeType:'application/pdf',base64:b64});ok(r.ok&&r.data.file_id&&r.data.file_size===9&&r.data.file_name==='istimara.pdf','upload file');
 const f1=r.data.file_id;
 r=call({action:'getFile',token:A2,id:doc.id});ok(r.ok&&Buffer.from(r.data.base64,'base64').toString()==='hello pdf'&&r.data.mimeType==='application/pdf','download file');
-r=call({action:'uploadFile',token:A2,id:doc.id,name:'new.jpg',mimeType:'image/jpeg',base64:'data:image/jpeg;base64,'+Buffer.from('jpg!').toString('base64')});ok(r.ok&&r.data.file_id!==f1&&ctx.DriveApp._files[f1].trashed,'replace file trashes old one');
+r=call({action:'uploadFile',token:A2,id:doc.id,name:'new.jpg',mimeType:'image/jpeg',base64:'data:image/jpeg;base64,'+Buffer.from('jpg!').toString('base64')});ok(r.ok&&r.data.file_id!==f1&&!ctx.DriveApp._files[f1].trashed&&/^\[replaced\]/.test(ctx.DriveApp._files[f1].name),'replace keeps old file in Drive (renamed)');
 r=call({action:'save',token:A2,table:'car_documents',row:{id:doc.id,file_id:'hack',notes:'x'}});ok(r.ok&&r.data.file_id!=='hack','file fields cannot be overwritten by save');
 r=call({action:'uploadFile',token:A2,id:doc.id,name:'big.bin',base64:Buffer.alloc(11*1024*1024).toString('base64')});ok(!r.ok&&/too big/.test(r.error),'10 MB limit');
 const D2=call({action:'login',username:'rahim',password:'driver1'});
 // driver doc
 r=call({action:'save',token:A2,table:'car_documents',row:{driver_id:drv,doc_type:'Iqama',expiry_date:'2027-05-05'}});ok(r.ok&&r.data.driver_name,'driver document saved');
 r=call({action:'save',token:A2,table:'car_documents',row:{doc_type:'Other'}});ok(!r.ok,'document needs car or driver');
-r=call({action:'removeFile',token:A2,id:doc.id});ok(r.ok&&!r.data.file_id,'remove file');
+{const fid=call({action:'data',token:A2}).data.docs.find(x=>x.id===doc.id).file_id;
+r=call({action:'removeFile',token:A2,id:doc.id});ok(r.ok&&!r.data.file_id&&!ctx.DriveApp._files[fid].trashed,'remove file detaches it but keeps it in Drive');}
 }
 
 // --- salary account (payroll)
@@ -87,6 +92,38 @@ r=call({action:'save',token:R,table:'payroll',row:{driver_id:rah.id,type:'bonus'
 r=call({action:'save',token:R,table:'expenses',row:{car_id:cars0,category:'fine',amount:150,expense_date:'2026-10-05',paid_by:'company',waived:true}});ok(r.ok&&r.data.waived!==true,'driver cannot waive own fine');
 r=call({action:'save',token:A3,table:'expenses',row:{id:r.data.id,waived:true,status:'approved'}});ok(r.ok&&r.data.waived===true,'admin waives fine');
 r=call({action:'saveUser',token:A3,user:{id:rah.id,full_name:'Rahim Uddin Mia'}});ok(sheets['Payroll'].data.slice(1).every(x=>x[2]==='Rahim Uddin Mia'),'payroll names follow renames');
+}
+
+// --- archive + receipts
+{
+const A4=call({action:'login',username:'admin',password:'123456'}).data.token;
+const R4=call({action:'login',username:'rahim',password:'driver1'}).data.token;
+const rah=call({action:'data',token:A4}).data.profiles.find(p=>p.username==='rahim');
+// salary archived -> the month can be added again; restoring the old one is blocked
+const sal=call({action:'data',token:A4}).data.payroll.find(x=>x.type==='salary'&&x.driver_id===rah.id);
+r=call({action:'remove',token:A4,table:'payroll',id:sal.id});ok(r.ok&&r.data.archived,'salary entry archived');
+r=call({action:'data',token:R4});ok(!r.data.payroll.some(x=>x.id===sal.id),'driver no longer sees archived entry');
+r=call({action:'save',token:A4,table:'payroll',row:{driver_id:rah.id,type:'salary',month:sal.month,amount:2600,entry_date:'2026-10-31'}});ok(r.ok,'same month can be added after archiving the old one');
+r=call({action:'restore',token:A4,table:'payroll',id:sal.id});ok(!r.ok&&/already added/.test(r.error),'restoring would duplicate the month: blocked');
+// receipts
+r=call({action:'save',token:R4,table:'expenses',row:{car_id:car,category:'fuel',amount:80,expense_date:'2026-10-20',paid_by:'driver'}});const ex=r.data.id;
+const img=Buffer.from('receipt-image').toString('base64');
+r=call({action:'uploadFile',token:R4,table:'expenses',id:ex,name:'bill.jpg',mimeType:'image/jpeg',base64:img});ok(r.ok&&r.data.file_name==='bill.jpg','driver uploads receipt to own expense');
+const K4=call({action:'login',username:'karim',password:'secret1'});
+r=call({action:'getFile',token:A4,table:'expenses',id:ex});ok(r.ok&&Buffer.from(r.data.base64,'base64').toString()==='receipt-image','admin downloads receipt');
+r=call({action:'getFile',token:R4,table:'expenses',id:ex});ok(r.ok,'driver views own receipt');
+const other=call({action:'save',token:A4,table:'expenses',row:{car_id:car,category:'repair',amount:10,expense_date:'2026-10-20',paid_by:'company',status:'approved'}}).data.id;
+r=call({action:'uploadFile',token:R4,table:'expenses',id:other,name:'x.jpg',mimeType:'image/jpeg',base64:img});ok(!r.ok,'driver cannot upload to someone else\'s expense');
+r=call({action:'getFile',token:R4,table:'expenses',id:other});ok(!r.ok,'driver cannot open someone else\'s receipt');
+r=call({action:'uploadFile',token:A4,table:'expenses',id:other,name:'inv.pdf',mimeType:'application/pdf',base64:img});ok(r.ok,'admin uploads receipt to any expense');
+call({action:'save',token:A4,table:'expenses',row:{id:ex,status:'approved'}});
+r=call({action:'removeFile',token:R4,table:'expenses',id:ex});ok(!r.ok,'driver cannot remove receipt after approval');
+r=call({action:'uploadFile',token:R4,table:'cars',id:car,name:'x',base64:img});ok(!r.ok,'files only on documents and expenses');
+// driver deletes own pending expense = archived, admin still sees it
+const p2=call({action:'save',token:R4,table:'expenses',row:{car_id:car,category:'wash',amount:20,expense_date:'2026-10-21',paid_by:'driver'}}).data.id;
+r=call({action:'remove',token:R4,table:'expenses',id:p2});ok(r.ok,'driver removes own pending expense');
+ok(call({action:'data',token:A4}).data.expenses.find(x=>x.id===p2).archived===true,'admin can still see it in the archive');
+ok(!call({action:'data',token:R4}).data.expenses.some(x=>x.id===p2),'driver does not see archived expense');
 }
 
 console.log(fails?fails+' FAILED':'ALL PASSED');

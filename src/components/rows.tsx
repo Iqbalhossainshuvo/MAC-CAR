@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { cap, carName, expiryLevel, fmtDate, money, num, personName, today } from '@/lib/format';
 import { CATEGORY_LABEL, type Assignment, type Car, type CarDocument, type DailyLog, type Expense, type Income, type Profile } from '@/lib/types';
 
-import { DocFileBar } from './DocFile';
+import { DocFileBar, FileBar } from './DocFile';
 import { Badge, C, ExpiryBadge, F, IconBtn, IconTile, ListItem, Row, statusTone, type IconName } from './ui';
 
 type Lookup<T> = Map<string, T>;
@@ -41,6 +41,7 @@ export function ExpenseRow({
   onReject,
   showCar = true,
   showDriver = true,
+  receipt,
 }: {
   e: Expense;
   cars: Lookup<Car>;
@@ -51,7 +52,10 @@ export function ExpenseRow({
   onReject?: () => void;
   showCar?: boolean;
   showDriver?: boolean;
+  /** who may attach / remove the receipt here (viewing is always allowed) */
+  receipt?: { canUpload?: boolean; canRemove?: boolean };
 }) {
+  const driverName = e.driver_id ? personName(people.get(e.driver_id)) : null;
   const parts = [
     fmtDate(e.expense_date),
     showCar ? cars.get(e.car_id)?.plate_no : null,
@@ -72,9 +76,13 @@ export function ExpenseRow({
           ) : null}
           <Row style={{ gap: 6, flexWrap: 'wrap' }}>
             {e.status !== 'approved' ? <Badge text={e.status} tone={statusTone(e.status)} /> : null}
-            {e.paid_by === 'driver' ? <Badge text="Paid by driver" tone="blue" /> : null}
+            {e.paid_by === 'driver' ? <Badge text={driverName && driverName !== '-' ? `Paid by ${driverName}` : 'Paid by driver'} tone="blue" /> : null}
+            {e.paid_by === 'company' && driverName && driverName !== '-' ? <Badge text={`Via ${driverName}`} tone="gray" /> : null}
             {e.category === 'fine' && e.waived ? <Badge text="Fine waived" tone="gray" /> : null}
           </Row>
+          {e.file_id || receipt?.canUpload ? (
+            <FileBar table="expenses" row={e} compact label="receipt" canUpload={receipt?.canUpload} canRemove={receipt?.canRemove} />
+          ) : null}
           {onApprove || onReject || onEdit || onDelete ? (
             <Row style={{ gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
               {onApprove ? <IconBtn icon="checkmark" color={C.green} label="Approve" onPress={onApprove} /> : null}

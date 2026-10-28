@@ -10,39 +10,55 @@ import {
   fileSize,
   isImage,
   isPdf,
-  loadDocFile,
+  loadRowFile,
   openNative,
   pickFile,
-  removeDocFile,
+  removeRowFile,
   takePhoto,
-  uploadDocFile,
+  uploadRowFile,
   webPreviewUrl,
+  type FileTable,
   type LoadedFile,
   type PickedFile,
 } from '@/lib/files';
-import type { CarDocument } from '@/lib/types';
+import type { WithFile } from '@/lib/types';
 
 import { Button, C, F, IconBtn, Row, hexA } from './ui';
 
-type Busy = null | 'upload' | 'view' | 'download' | 'remove';
+type Busy = null | 'view' | 'download' | 'remove';
 
-/** File attached to a document: upload, take photo, view, download, replace, remove. */
-export function DocFileBar({ doc, manage }: { doc: CarDocument; manage?: boolean }) {
+/**
+ * The file attached to a document or an expense (receipt):
+ * upload, take a photo, view, download, replace, remove.
+ */
+export function FileBar({
+  table,
+  row,
+  canUpload,
+  canRemove,
+  compact,
+  label = 'file',
+}: {
+  table: FileTable;
+  row: WithFile & { id: string };
+  canUpload?: boolean;
+  canRemove?: boolean;
+  /** small chip for list rows */
+  compact?: boolean;
+  label?: string;
+}) {
   const [busy, setBusy] = useState<Busy>(null);
   const [viewer, setViewer] = useState<LoadedFile | null>(null);
-  const synced = isSynced(doc.id);
+  const uploading = row.file_id === 'pending';
 
   const upload = async (get: () => Promise<PickedFile | null>) => {
     const f = await get();
-    if (!f) return;
-    setBusy('upload');
-    await uploadDocFile(doc, f);
-    setBusy(null);
+    if (f) uploadRowFile(table, row, f);
   };
 
   const view = async () => {
     setBusy('view');
-    const f = await loadDocFile(doc);
+    const f = await loadRowFile(table, row);
     setBusy(null);
     if (!f) return;
     if (Platform.OS !== 'web' && !isImage(f.mimeType)) await openNative(f);
@@ -51,69 +67,110 @@ export function DocFileBar({ doc, manage }: { doc: CarDocument; manage?: boolean
 
   const download = async () => {
     setBusy('download');
-    const f = await loadDocFile(doc);
+    const f = await loadRowFile(table, row);
     if (f) await downloadFile(f);
     setBusy(null);
   };
 
   const remove = async () => {
-    if (!(await confirm('Remove file?', `${doc.file_name ?? 'The file'} will be moved to the trash in Google Drive.`, 'Remove'))) return;
+    if (!(await confirm(`Remove ${label}?`, `${row.file_name ?? 'The file'} is detached here but kept in your Google Drive.`, 'Remove'))) return;
     setBusy('remove');
-    await removeDocFile(doc);
+    await removeRowFile(table, row);
     setBusy(null);
   };
 
-  if (!doc.file_id) {
-    if (!manage) return <Text style={{ color: C.muted, fontSize: 12, fontFamily: F.regular }}>No file attached</Text>;
-    if (!synced) return <Text style={{ color: C.muted, fontSize: 12, fontFamily: F.regular }}>Saving… you can attach a file in a moment</Text>;
+  if (!row.file_id) {
+    if (!canUpload) return compact ? null : <Text style={{ color: C.muted, fontSize: 12, fontFamily: F.regular }}>No {label} attached</Text>;
+    if (compact) {
+      return (
+        <Row style={{ gap: 6, marginTop: 2 }}>
+          <Button small variant="ghost" icon="attach" title={`Add ${label}`} onPress={() => upload(pickFile)} />
+          <IconBtn icon="camera-outline" label={`Take photo of ${label}`} onPress={() => upload(takePhoto)} />
+        </Row>
+      );
+    }
     return (
       <Row style={{ gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
-        <Button small variant="ghost" icon="cloud-upload-outline" title="Upload file" loading={busy === 'upload'} onPress={() => upload(pickFile)} />
-        <Button small variant="ghost" icon="camera-outline" title="Take photo" disabled={busy === 'upload'} onPress={() => upload(takePhoto)} />
+        <Button small variant="ghost" icon="cloud-upload-outline" title="Upload file" onPress={() => upload(pickFile)} />
+        <Button small variant="ghost" icon="camera-outline" title="Take photo" onPress={() => upload(takePhoto)} />
       </Row>
     );
   }
 
+  const icon = isImage(row.file_type) ? 'image' : isPdf(row.file_type) ? 'document-text' : 'document';
+  const chip = (
+    <Pressable
+      onPress={view}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${row.file_name}`}
+      style={({ pressed }) => [
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: compact ? 8 : 10,
+          padding: compact ? 8 : 10,
+          borderRadius: 14,
+          backgroundColor: hexA(C.primary, pressed ? 0.12 : 0.07),
+          alignSelf: compact ? 'flex-start' : 'stretch',
+          maxWidth: '100%',
+        },
+      ]}
+    >
+      <Ionicons name={compact ? 'receipt-outline' : icon} size={compact ? 18 : 22} color={C.primary} />
+      <View style={{ flexShrink: 1 }}>
+        <Text style={{ color: C.text, fontFamily: F.semi, fontSize: compact ? 12 : 13 }} numberOfLines={1}>
+          {compact ? `${label.charAt(0).toUpperCase() + label.slice(1)} · ` : ''}
+          {row.file_name}
+        </Text>
+        {!compact ? (
+          <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 11 }}>
+            {uploading ? 'Uploading…' : [row.file_type?.split('/')[1]?.toUpperCase(), fileSize(row.file_size)].filter(Boolean).join(' · ')}
+          </Text>
+        ) : null}
+      </View>
+      {busy === 'view' ? (
+        <ActivityIndicator color={C.primary} />
+      ) : uploading ? (
+        <Ionicons name="cloud-upload-outline" size={18} color={C.amber} />
+      ) : (
+        <Ionicons name="eye-outline" size={18} color={C.primary} />
+      )}
+    </Pressable>
+  );
+
   return (
     <View style={{ gap: 8, marginTop: 2 }}>
-      <Pressable
-        onPress={view}
-        accessibilityRole="button"
-        accessibilityLabel={`View ${doc.file_name}`}
-        style={({ pressed }) => [
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            padding: 10,
-            borderRadius: 14,
-            backgroundColor: hexA(C.primary, pressed ? 0.12 : 0.07),
-            alignSelf: 'stretch',
-          },
-        ]}
-      >
-        <Ionicons name={isImage(doc.file_type) ? 'image' : isPdf(doc.file_type) ? 'document-text' : 'document'} size={22} color={C.primary} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: C.text, fontFamily: F.semi, fontSize: 13 }} numberOfLines={1}>
-            {doc.file_name}
-          </Text>
-          <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 11 }}>{[doc.file_type?.split('/')[1]?.toUpperCase(), fileSize(doc.file_size)].filter(Boolean).join(' · ')}</Text>
-        </View>
-        {busy === 'view' ? <ActivityIndicator color={C.primary} /> : <Ionicons name="eye-outline" size={20} color={C.primary} />}
-      </Pressable>
-      <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-        <Button small variant="ghost" icon="download-outline" title="Download" loading={busy === 'download'} onPress={download} />
-        {manage ? (
-          <>
-            <Button small variant="ghost" icon="swap-horizontal" title="Replace" loading={busy === 'upload'} onPress={() => upload(pickFile)} />
-            <IconBtn icon="camera-outline" label="Replace with photo" onPress={() => upload(takePhoto)} />
-            <IconBtn icon="trash-outline" color={C.red} label="Remove file" onPress={remove} />
-          </>
-        ) : null}
-      </Row>
+      {compact ? (
+        <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+          {chip}
+          <IconBtn icon="download-outline" label={`Download ${label}`} onPress={download} />
+          {canUpload && !uploading ? <IconBtn icon="swap-horizontal" label={`Replace ${label}`} onPress={() => upload(pickFile)} /> : null}
+          {canRemove && !uploading ? <IconBtn icon="close" color={C.muted} label={`Remove ${label}`} onPress={remove} /> : null}
+        </Row>
+      ) : (
+        <>
+          {chip}
+          <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+            <Button small variant="ghost" icon="download-outline" title="Download" loading={busy === 'download'} onPress={download} />
+            {canUpload && !uploading ? (
+              <>
+                <Button small variant="ghost" icon="swap-horizontal" title="Replace" onPress={() => upload(pickFile)} />
+                <IconBtn icon="camera-outline" label="Replace with photo" onPress={() => upload(takePhoto)} />
+              </>
+            ) : null}
+            {canRemove && !uploading ? <IconBtn icon="trash-outline" color={C.red} label="Remove file" onPress={remove} /> : null}
+          </Row>
+        </>
+      )}
       <FileViewer file={viewer} onClose={() => setViewer(null)} />
     </View>
   );
+}
+
+/** Document file bar (admin manages, others view). */
+export function DocFileBar({ doc, manage }: { doc: WithFile & { id: string }; manage?: boolean }) {
+  const synced = isSynced(doc.id);
+  return <FileBar table="car_documents" row={doc} canUpload={manage} canRemove={manage && synced} />;
 }
 
 /** In-app preview: images everywhere, PDFs on web. */

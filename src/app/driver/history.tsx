@@ -28,6 +28,7 @@ export default function DriverHistory() {
             d.expenses.map((e) => (
               <ExpenseRow
                 key={e.id}
+                receipt={{ canUpload: true, canRemove: e.status === 'pending' }}
                 e={e}
                 cars={carById}
                 people={personById}

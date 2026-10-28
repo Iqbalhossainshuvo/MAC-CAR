@@ -23,7 +23,8 @@ type Reload = () => void | Promise<void>;
 const saver =
   (table: Table, reload: Reload, id?: string) =>
   async (v: Record<string, any>) => {
-    const ok = await saveRow(table, id ? { ...v, id } : v);
+    const { receipt, ...row } = v;
+    const ok = await saveRow(table, id ? { ...row, id } : row, receipt ?? null);
     if (ok) await reload();
     return ok;
   };
@@ -129,7 +130,7 @@ export function resetPassword(open: Open, p: Profile) {
 }
 
 export async function deleteRow(table: Table, id: string, what: string, reload: Reload) {
-  if (!(await confirm(`Delete ${what}?`, 'This cannot be undone.'))) return;
+  if (!(await confirm(`Delete ${what}?`, 'It will be hidden everywhere and moved to the Archive. It stays in your Google Sheet and can be restored.'))) return;
   if (await removeRow(table, id)) await reload();
 }
 

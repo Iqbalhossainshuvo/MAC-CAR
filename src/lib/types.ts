@@ -1,5 +1,20 @@
 export type Role = 'admin' | 'driver';
 
+/** "Deleted" rows are archived: hidden in the app, kept in the sheet, restorable. */
+export interface Archivable {
+  archived?: boolean;
+  archived_at?: string | null;
+  archived_by?: string | null;
+}
+
+/** A file stored in the admin's Google Drive (document scan, expense receipt). */
+export interface WithFile {
+  file_id?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
+}
+
 export interface Profile {
   id: string;
   username: string | null;
@@ -22,7 +37,7 @@ export interface Profile {
 
 export type CarStatus = 'active' | 'maintenance' | 'inactive' | 'sold';
 
-export interface Car {
+export interface Car extends Archivable {
   id: string;
   plate_no: string;
   make: string | null;
@@ -38,7 +53,7 @@ export interface Car {
   created_at: string;
 }
 
-export interface CarDocument {
+export interface CarDocument extends Archivable {
   id: string;
   /** a document belongs to a car OR to a driver */
   car_id: string | null;
@@ -55,7 +70,7 @@ export interface CarDocument {
   file_size?: number | null;
 }
 
-export interface Assignment {
+export interface Assignment extends Archivable {
   id: string;
   car_id: string;
   driver_id: string;
@@ -64,7 +79,7 @@ export interface Assignment {
   notes: string | null;
 }
 
-export interface Income {
+export interface Income extends Archivable {
   id: string;
   car_id: string;
   driver_id: string | null;
@@ -90,7 +105,7 @@ export type ExpenseCategory =
   | 'salary'
   | 'other';
 
-export interface Expense {
+export interface Expense extends Archivable, WithFile {
   id: string;
   car_id: string;
   driver_id: string | null;
@@ -110,7 +125,7 @@ export interface Expense {
 export type PayType = 'salary' | 'bonus' | 'advance' | 'deduction' | 'payment' | 'refund';
 
 /** One line in a driver's salary account (Payroll sheet) */
-export interface PayEntry {
+export interface PayEntry extends Archivable {
   id: string;
   driver_id: string;
   type: PayType;
@@ -123,7 +138,7 @@ export interface PayEntry {
   created_at: string;
 }
 
-export interface DailyLog {
+export interface DailyLog extends Archivable {
   id: string;
   driver_id: string;
   car_id: string;

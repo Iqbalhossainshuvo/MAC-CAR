@@ -96,7 +96,7 @@ export default function Expenses() {
         <ListCard title={`Expenses · ${list.length}`}>
           {list.length ? (
             list.map((e) => (
-              <ExpenseRow
+              <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
                 key={e.id}
                 e={e}
                 cars={carById}

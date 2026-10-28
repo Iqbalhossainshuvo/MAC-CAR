@@ -95,6 +95,7 @@ export const expenseFields = (cars: Car[], people: Profile[]): FieldDef[] => [
   { key: 'odometer', label: 'Odometer (km)', type: 'number' },
   { key: 'reference', label: 'Invoice / violation number' },
   { key: 'description', label: 'Details', type: 'multiline', placeholder: 'What was done / why the fine' },
+  { key: 'receipt', label: 'Receipt / invoice (photo or PDF)', type: 'file', hint: 'Optional. You can also add it later.' },
   {
     key: 'status',
     label: 'Status',
@@ -123,6 +124,7 @@ export const driverExpenseFields = (cars: Car[]): FieldDef[] => [
   { key: 'odometer', label: 'Odometer (km)', type: 'number' },
   { key: 'reference', label: 'Invoice / violation number' },
   { key: 'description', label: 'Details', type: 'multiline', placeholder: 'Workshop name, work done, fine reason…' },
+  { key: 'receipt', label: 'Receipt / invoice (photo or PDF)', type: 'file', hint: 'Optional. You can also add it later.' },
 ];
 
 export const logFields = (cars: Car[]): FieldDef[] => [

@@ -24,7 +24,7 @@ const ctx={console,JSON,Date,Math,String,Number,Object,Array,isNaN,encodeURIComp
  LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
  ContentService:{MimeType:{JSON:'json'},createTextOutput:t=>({setMimeType(){return t}})},
  Logger:{log:m=>console.log('LOG:',m)},
- DriveApp:(()=>{const files={};let n=0;const mkFile=(blob)=>{const id='f'+(++n);const f={id,blob,trashed:false,getId:()=>id,setTrashed(t){f.trashed=t},getBlob:()=>blob};files[id]=f;return f};
+ DriveApp:(()=>{const files={};let n=0;const mkFile=(blob)=>{const id='f'+(++n);const f={id,blob,trashed:false,name:blob.getName?blob.getName():'file',getId:()=>id,setTrashed(t){f.trashed=t},getBlob:()=>blob,getName:()=>f.name,setName(n){f.name=n}};files[id]=f;return f};
   const folder={getId:()=>'folder1',isTrashed:()=>false,createFile:(b)=>mkFile(b)};
   return {_files:files,createFolder:()=>folder,getFolderById:()=>folder,getFileById:(id)=>{if(!files[id])throw new Error('no file');return files[id]}}})(),
  UrlFetchApp:{fetch:()=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify(ctx._google)})},_google:{}};
