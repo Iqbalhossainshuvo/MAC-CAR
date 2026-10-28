@@ -186,7 +186,14 @@ function route_(b) {
 function setup() {
   Object.keys(TABLES).forEach(function (t) { sheet_(t); });
   secret_();
-  filesFolder_();
+  try {
+    filesFolder_();
+  } catch (e) {
+    throw new Error('Google Drive permission is missing, so document and receipt files cannot be saved. ' +
+      'Fix: Project Settings → tick "Show appsscript.json manifest file" → open appsscript.json → paste the one from GitHub ' +
+      '(apps-script/appsscript.json, it contains https://www.googleapis.com/auth/drive) → Save → run setup again and click Allow. ' +
+      'Original error: ' + e.message);
+  }
   var users = readTable_('users');
   var owner = Session.getEffectiveUser().getEmail();
   var msg = 'Sheets ready.\n';
