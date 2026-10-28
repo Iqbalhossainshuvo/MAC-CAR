@@ -98,7 +98,7 @@ export default function DriverDetails() {
       <Card accent={C.magenta}>
         <Row style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <View style={{ flex: 1, minWidth: 200 }}>
-            <Text style={{ color: C.text, fontFamily: F.display, fontSize: 20, letterSpacing: 1 }}>{personName(p)}</Text>
+            <Text style={{ color: C.text, fontFamily: F.display, fontSize: 22 }}>{personName(p)}</Text>
             <Text style={{ color: C.muted, marginTop: 4 }}>
               @{p.username} {p.phone ? `· ${p.phone}` : ''}
             </Text>
@@ -125,7 +125,7 @@ export default function DriverDetails() {
       <Columns>
         <Col>
           <Card>
-            <Text style={{ color: C.primary, fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>PROFILE</Text>
+            <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 15, marginBottom: 8 }}>Profile</Text>
             <KV label="Full name" value={p.full_name || '-'} />
             <KV label="Username" value={p.username ?? '-'} />
             <KV label="Google email" value={p.email ?? '-'} />
@@ -139,7 +139,7 @@ export default function DriverDetails() {
           </Card>
 
           <ListCard
-            title="CARS · WHEN & WHICH"
+            title="Cars · when & which"
             right={
               <Button title="Assign" icon="car" small onPress={() => editAssignment(form.open, reload, d, { driver_id: p.id })} />
             }
@@ -167,7 +167,7 @@ export default function DriverDetails() {
 
         <Col>
           <ListCard
-            title={`WORK & EXPENSES · ${money(v.spent)}`}
+            title={`Work & expenses · ${money(v.spent)}`}
             right={
               <Button
                 title="Add"
@@ -182,7 +182,7 @@ export default function DriverDetails() {
           </ListCard>
 
           <ListCard
-            title={`FINES · ${money(v.fineTotal)}`}
+            title={`Fines · ${money(v.fineTotal)}`}
             accent={C.red}
             right={
               <Button
@@ -197,7 +197,7 @@ export default function DriverDetails() {
             {v.fines.length ? v.fines.map(expenseRow) : <Empty text="No fines — good driver!" icon="happy-outline" />}
           </ListCard>
 
-          <ListCard title="DAILY REPORTS">
+          <ListCard title="Daily reports">
             {v.logs.length ? (
               v.logs.slice(0, 30).map((l) => (
                 <LogRow key={l.id} l={l} cars={carById} people={personById} showDriver={false} onDelete={() => deleteRow('daily_logs', l.id, 'this daily report', reload)} />

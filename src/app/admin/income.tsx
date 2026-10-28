@@ -71,7 +71,7 @@ export default function IncomeScreen() {
 
         <Columns>
           <Col>
-            <ListCard title="BY CAR · GIVEN TO · PROFIT">
+            <ListCard title="By car · given to · profit">
               {v.perCar.length ? (
                 v.perCar.map(({ c, m, customers }) => (
                   <ListItem
@@ -99,7 +99,7 @@ export default function IncomeScreen() {
             </ListCard>
           </Col>
           <Col>
-            <ListCard title="INCOME ENTRIES">
+            <ListCard title="Income entries">
               {v.incomes.length ? (
                 v.incomes.map((i) => (
                   <IncomeRow

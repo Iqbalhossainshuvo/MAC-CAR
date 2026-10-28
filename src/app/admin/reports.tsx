@@ -20,7 +20,6 @@ import {
   Select,
   StatCard,
   StatGrid,
-  glow,
   hexA,
 } from '@/components/ui';
 import { useFleet } from '@/lib/data';
@@ -44,18 +43,15 @@ function Toggle({ on, label, onPress }: { on: boolean; label: string; onPress: (
           flexDirection: 'row',
           alignItems: 'center',
           gap: 6,
-          paddingHorizontal: 12,
-          minHeight: 38,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: on ? C.primary : C.border,
-          backgroundColor: on ? hexA(C.primary, 0.12) : 'transparent',
+          paddingHorizontal: 14,
+          minHeight: 40,
+          borderRadius: 999,
+          backgroundColor: on ? hexA(C.primary, 0.12) : 'rgba(255,255,255,0.8)',
         },
-        on ? glow(C.primary, 8, 0.35) : null,
       ]}
     >
-      <Ionicons name={on ? 'checkbox' : 'square-outline'} size={16} color={on ? C.primary : C.muted} />
-      <Text style={{ color: on ? C.text : C.muted, fontFamily: F.monoBold, fontSize: 12 }}>{label.toUpperCase()}</Text>
+      <Ionicons name={on ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={on ? C.primary : C.muted} />
+      <Text style={{ color: on ? C.primary : C.muted, fontFamily: F.semi, fontSize: 13 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -152,7 +148,7 @@ export default function Reports() {
           </View>
         </Row>
 
-        <Text style={{ color: C.primary, fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1.2, marginBottom: 6 }}>INCLUDE</Text>
+        <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 15, marginBottom: 8 }}>Include</Text>
         <Row style={{ flexWrap: 'wrap' }}>
           {ALL_PARTS.map((p) => (
             <Toggle key={p} on={has(p)} label={PART_LABEL[p]} onPress={() => toggle(p)} />
@@ -189,12 +185,12 @@ export default function Reports() {
       </StatGrid>
 
       {has('income') ? (
-        <ListCard title={`INCOME · ${r.incomes.length}`}>
+        <ListCard title={`Income · ${r.incomes.length}`}>
           {r.incomes.length ? r.incomes.slice(0, LIMIT).map((i) => <IncomeRow key={i.id} i={i} cars={carById} />) : <Empty text="No income" />}
         </ListCard>
       ) : null}
       {has('expense') ? (
-        <ListCard title={`EXPENSES · ${r.expenses.length}`}>
+        <ListCard title={`Expenses · ${r.expenses.length}`}>
           {r.expenses.length ? (
             r.expenses.slice(0, LIMIT).map((e) => <ExpenseRow key={e.id} e={e} cars={carById} people={personById} />)
           ) : (
@@ -203,17 +199,17 @@ export default function Reports() {
         </ListCard>
       ) : null}
       {has('fines') ? (
-        <ListCard title={`FINES · ${r.fines.length}`} accent={C.red}>
+        <ListCard title={`Fines · ${r.fines.length}`} accent={C.red}>
           {r.fines.length ? r.fines.slice(0, LIMIT).map((e) => <ExpenseRow key={e.id} e={e} cars={carById} people={personById} />) : <Empty text="No fines" />}
         </ListCard>
       ) : null}
       {has('logs') ? (
-        <ListCard title={`DAILY REPORTS · ${r.logs.length}`}>
+        <ListCard title={`Daily reports · ${r.logs.length}`}>
           {r.logs.length ? r.logs.slice(0, LIMIT).map((l) => <LogRow key={l.id} l={l} cars={carById} people={personById} />) : <Empty text="No daily reports" />}
         </ListCard>
       ) : null}
       {has('docs') ? (
-        <ListCard title={`DOCUMENTS · ${r.docs.length}`}>
+        <ListCard title={`Documents · ${r.docs.length}`}>
           {r.docs.length ? (
             r.docs.map((x) => (
               <View key={x.id}>
@@ -227,7 +223,7 @@ export default function Reports() {
         </ListCard>
       ) : null}
       {has('assignments') ? (
-        <ListCard title={`DRIVER HISTORY · ${r.assignments.length}`}>
+        <ListCard title={`Driver history · ${r.assignments.length}`}>
           {r.assignments.length ? (
             r.assignments.map((a) => <AssignmentRow key={a.id} a={a} mode={carId ? 'driver' : 'car'} cars={carById} people={personById} />)
           ) : (

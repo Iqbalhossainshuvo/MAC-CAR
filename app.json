@@ -5,14 +5,14 @@
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.maccar.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#05070F",
+        "backgroundColor": "#7C5CFC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -26,8 +26,8 @@
       "bundler": "metro",
       "name": "MAC CAR",
       "shortName": "MAC CAR",
-      "themeColor": "#05070F",
-      "backgroundColor": "#05070F"
+      "themeColor": "#F2F0FF",
+      "backgroundColor": "#F2F0FF"
     },
     "plugins": [
       "expo-router",
@@ -38,11 +38,11 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
-          "backgroundColor": "#05070F"
+          "backgroundColor": "#F2F0FF"
         }
       ]
     ],
     "scheme": "maccar",
-    "backgroundColor": "#05070F"
+    "backgroundColor": "#F2F0FF"
   }
 }

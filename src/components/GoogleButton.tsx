@@ -50,9 +50,9 @@ export function GoogleButton({ onCredential }: { onCredential: (credential: stri
           ux_mode: 'popup',
         });
         window.google.accounts.id.renderButton(ref.current, {
-          theme: 'filled_black',
+          theme: 'outline',
           size: 'large',
-          shape: 'rectangular',
+          shape: 'pill',
           text: 'signin_with',
           width: Math.min(400, Math.max(200, Math.floor(width))),
         });

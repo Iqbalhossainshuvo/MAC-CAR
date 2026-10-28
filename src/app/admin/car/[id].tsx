@@ -84,7 +84,7 @@ export default function CarDetails() {
       <Card accent={C.magenta}>
         <Row style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <View style={{ flex: 1, minWidth: 200 }}>
-            <Text style={{ color: C.text, fontFamily: F.displayBlack, fontSize: 24, letterSpacing: 2 }}>{car.plate_no}</Text>
+            <Text style={{ color: C.text, fontFamily: F.display, fontSize: 26 }}>{car.plate_no}</Text>
             <Text style={{ color: C.muted, marginTop: 4 }}>
               {[car.make, car.model, car.year, car.color].filter(Boolean).join(' · ') || 'No model info'}
             </Text>
@@ -115,7 +115,7 @@ export default function CarDetails() {
       <Columns>
         <Col>
           <Card>
-            <Text style={{ color: C.primary, fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CAR INFO</Text>
+            <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 15, marginBottom: 8 }}>Car info</Text>
             <KV label="Plate number" value={car.plate_no} />
             <KV label="Make / model" value={[car.make, car.model].filter(Boolean).join(' ') || '-'} />
             <KV label="Year" value={car.year != null ? String(car.year) : '-'} />
@@ -129,7 +129,7 @@ export default function CarDetails() {
           </Card>
 
           <ListCard
-            title="DOCUMENTS"
+            title="Documents"
             right={<Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, car.id)} />}
           >
             {v.docs.length ? (
@@ -147,7 +147,7 @@ export default function CarDetails() {
           </ListCard>
 
           <ListCard
-            title="DRIVERS · WHO DROVE WHEN"
+            title="Drivers · who drove when"
             right={
               <Button
                 title="Assign"
@@ -178,7 +178,7 @@ export default function CarDetails() {
 
         <Col>
           <ListCard
-            title={`INCOME · ${money(v.m.income)}`}
+            title={`Income · ${money(v.m.income)}`}
             right={<Button title="Add" icon="add" small onPress={() => editIncome(form.open, reload, d, { car_id: car.id })} />}
           >
             {v.incomes.length ? (
@@ -198,7 +198,7 @@ export default function CarDetails() {
           </ListCard>
 
           <ListCard
-            title={`EXPENSES & WORK · ${money(v.m.expense)}`}
+            title={`Expenses & work · ${money(v.m.expense)}`}
             right={
               <Button
                 title="Add"
@@ -226,7 +226,7 @@ export default function CarDetails() {
             )}
           </ListCard>
 
-          <ListCard title="DAILY REPORTS">
+          <ListCard title="Daily reports">
             {v.logs.length ? (
               v.logs.slice(0, 20).map((l) => (
                 <LogRow key={l.id} l={l} cars={carById} people={personById} showCar={false} onDelete={() => deleteRow('daily_logs', l.id, 'this daily report', reload)} />

@@ -75,14 +75,16 @@ export default function Expenses() {
         </Row>
 
         <StatGrid>
-          <StatCard label="Approved total" value={money(sum(approved, (e) => e.amount))} icon="trending-down" tone="red" sub={`${approved.length} entries`} />
+          <StatCard compact label="Approved" value={money(sum(approved, (e) => e.amount))} icon="trending-down" tone="red" sub={`${approved.length} entries`} />
           <StatCard
+            compact
             label="Fines"
             value={money(sum(approved.filter((e) => e.category === 'fine'), (e) => e.amount))}
             icon="alert-circle"
             tone="amber"
           />
           <StatCard
+            compact
             label="Waiting approval"
             value={money(sum(list.filter((e) => e.status === 'pending'), (e) => e.amount))}
             icon="hourglass"
@@ -91,7 +93,7 @@ export default function Expenses() {
           />
         </StatGrid>
 
-        <ListCard title={`EXPENSES · ${list.length}`}>
+        <ListCard title={`Expenses · ${list.length}`}>
           {list.length ? (
             list.map((e) => (
               <ExpenseRow

@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GoogleButton, googleSignInAvailable } from '@/components/GoogleButton';
-import { Button, C, Card, F, Field, Input, Row, glow, hexA, textGlow } from '@/components/ui';
+import { Button, C, Card, F, Field, GRAD, IconTile, Input, Row, glow } from '@/components/ui';
 import { isConfigured } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -37,57 +38,39 @@ export default function Login() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }} keyboardShouldPersistTaps="handled">
-        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-          <View style={{ alignItems: 'center', marginBottom: 26 }}>
-            <View
-              style={[
-                {
-                  width: 84,
-                  height: 84,
-                  borderRadius: 22,
-                  borderWidth: 2,
-                  borderColor: C.primary,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: hexA(C.primary, 0.08),
-                },
-                glow(C.primary, 30, 0.55),
-              ]}
-            >
-              <Ionicons name="car-sport" size={44} color={C.primary} />
+        <View style={{ width: '100%', maxWidth: 430, alignSelf: 'center' }}>
+          <View style={{ alignItems: 'center', marginBottom: 24 }}>
+            <View style={[styles.logo, glow(C.primary, 40, 0.45)]}>
+              <LinearGradient colors={GRAD as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: 30 }]} />
+              <View style={styles.logoShine} />
+              <Ionicons name="car-sport" size={46} color="#fff" />
             </View>
-            <Text style={{ marginTop: 18, fontFamily: F.displayBlack, fontSize: 32, color: C.text, letterSpacing: 6, ...textGlow(C.primary, 18) }}>
-              MAC <Text style={{ color: C.magenta, ...textGlow(C.magenta, 18) }}>CAR</Text>
-            </Text>
-            <Text style={{ color: C.primary, fontFamily: F.mono, letterSpacing: 3, fontSize: 12, marginTop: 6 }}>
-              FLEET COMMAND SYSTEM
+            <Text style={{ marginTop: 22, fontFamily: F.display, fontSize: 32, color: C.text, letterSpacing: -0.6 }}>Welcome back</Text>
+            <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 15, marginTop: 6, textAlign: 'center' }}>
+              Sign in to MAC CAR to manage your fleet
             </Text>
           </View>
 
           {!isConfigured ? (
-            <Card accent={C.amber}>
+            <Card accent={C.amber} style={{ backgroundColor: '#FFF9EE' }}>
               <Row>
-                <Ionicons name="construct" size={18} color={C.amber} />
-                <Text style={{ color: C.amber, fontFamily: F.monoBold }}>SETUP NEEDED</Text>
+                <IconTile icon="construct" color={C.amber} size={36} />
+                <Text style={{ color: C.amber, fontFamily: F.bold, flex: 1 }}>Setup needed</Text>
               </Row>
-              <Text style={{ color: C.text, marginTop: 8, lineHeight: 20 }}>
-                This app is not connected to Google Sheets yet. Add your Apps Script web app URL as
-                EXPO_PUBLIC_API_URL (see README → Setup), then reload.
+              <Text style={{ color: C.text, marginTop: 8, lineHeight: 20, fontFamily: F.regular }}>
+                This app is not connected to Google Sheets yet. Add your Apps Script web app URL as EXPO_PUBLIC_API_URL (see README →
+                Setup), then reload.
               </Text>
             </Card>
           ) : null}
 
-          <Card>
-            <Text style={{ fontFamily: F.display, color: C.text, fontSize: 15, letterSpacing: 1.5, marginBottom: 16 }}>
-              SIGN IN
-            </Text>
-
+          <Card style={{ padding: 20 }}>
             {googleSignInAvailable ? (
               <>
                 <GoogleButton onCredential={google} />
-                <Row style={{ marginVertical: 16 }}>
+                <Row style={{ marginVertical: 18 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
-                  <Text style={{ color: C.muted, fontFamily: F.mono, fontSize: 11 }}>OR USERNAME</Text>
+                  <Text style={{ color: C.muted, fontFamily: F.semi, fontSize: 12 }}>or use your username</Text>
                   <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
                 </Row>
               </>
@@ -97,7 +80,7 @@ export default function Login() {
               <Input
                 value={username}
                 onChangeText={setUsername}
-                placeholder="your username"
+                placeholder="Your username"
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="username"
@@ -116,35 +99,32 @@ export default function Login() {
                   autoComplete="current-password"
                   accessibilityLabel="Password"
                   onSubmitEditing={submit}
-                  style={{ paddingRight: 48 }}
+                  style={{ paddingRight: 52 }}
                 />
-                <View style={{ position: 'absolute', right: 4, top: 0, bottom: 0, justifyContent: 'center' }}>
-                  <Ionicons.Button
-                    name={show ? 'eye-off' : 'eye'}
-                    color={C.muted}
-                    backgroundColor="transparent"
-                    underlayColor="transparent"
-                    iconStyle={{ marginRight: 0 }}
-                    onPress={() => setShow((v) => !v)}
-                    accessibilityLabel={show ? 'Hide password' : 'Show password'}
-                  />
-                </View>
+                <Pressable
+                  onPress={() => setShow((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityLabel={show ? 'Hide password' : 'Show password'}
+                  style={{ position: 'absolute', right: 4, top: 0, bottom: 0, width: 44, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.muted} />
+                </Pressable>
               </View>
             </Field>
 
             {error ? (
               <Row style={{ marginBottom: 12 }}>
                 <Ionicons name="alert-circle" size={18} color={C.red} />
-                <Text style={{ color: C.red, flex: 1 }} accessibilityLiveRegion="polite">
+                <Text style={{ color: C.red, flex: 1, fontFamily: F.semi }} accessibilityLiveRegion="polite">
                   {error}
                 </Text>
               </Row>
             ) : null}
 
-            <Button title="Enter" icon="log-in" onPress={submit} loading={busy} disabled={!isConfigured} />
+            <Button title="Sign in" icon="arrow-forward" onPress={submit} loading={busy} disabled={!isConfigured} />
           </Card>
 
-          <Text style={{ color: C.muted, textAlign: 'center', fontSize: 12, marginTop: 6 }}>
+          <Text style={{ color: C.muted, textAlign: 'center', fontSize: 13, marginTop: 4, fontFamily: F.regular }}>
             Drivers: use the username and password from your admin.
           </Text>
         </View>
@@ -152,3 +132,8 @@ export default function Login() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  logo: { width: 96, height: 96, borderRadius: 30, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  logoShine: { position: 'absolute', top: -30, right: -30, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(255,255,255,0.22)' },
+});

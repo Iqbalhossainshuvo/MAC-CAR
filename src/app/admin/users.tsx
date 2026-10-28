@@ -65,8 +65,8 @@ export default function Users() {
         {error ? <ErrorBox message={error} onRetry={reload} /> : null}
         <Card accent={C.magenta}>
           <Text style={{ color: C.text, lineHeight: 20 }}>
-            <Text style={{ color: C.magenta, fontFamily: F.monoBold }}>ADMIN</Text> can see and change everything.{'\n'}
-            <Text style={{ color: C.primary, fontFamily: F.monoBold }}>DRIVER</Text> sees only their own profile and car, and adds their daily work and expenses
+            <Text style={{ color: C.magenta, fontFamily: F.monoBold }}>Admin</Text> can see and change everything.{'\n'}
+            <Text style={{ color: C.primary, fontFamily: F.monoBold }}>Driver</Text> sees only their own profile and car, and adds their daily work and expenses
             (you approve them).
           </Text>
         </Card>
@@ -74,7 +74,7 @@ export default function Users() {
         <Chips<Filter> options={['all', 'admin', 'driver', 'inactive']} value={filter} onChange={setFilter} />
         <View style={{ height: 8 }} />
 
-        <ListCard title={`USERS · ${list.length}`}>
+        <ListCard title={`Users · ${list.length}`}>
           {list.length ? (
             list.map((p) => {
               const self = p.id === me?.id;

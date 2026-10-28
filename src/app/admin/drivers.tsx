@@ -101,7 +101,7 @@ export default function Drivers() {
 
                 <View style={{ marginTop: 12, gap: 7 }}>
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>CAR NOW</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>Car now</Text>
                     {r.car ? (
                       <Text style={{ color: C.green, fontFamily: F.monoBold, flex: 1 }} numberOfLines={1}>
                         {carName(r.car)}
@@ -112,27 +112,27 @@ export default function Drivers() {
                   </Row>
                   {r.a ? (
                     <Row>
-                      <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>SINCE</Text>
+                      <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>Since</Text>
                       <Text style={{ color: C.text, fontFamily: F.mono }}>{fmtDate(r.a.start_date)}</Text>
                     </Row>
                   ) : null}
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>WORK PAID</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>Work paid</Text>
                     <Text style={{ color: C.text, fontFamily: F.monoBold }}>{money(r.spent)}</Text>
                   </Row>
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>FINES</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>Fines</Text>
                     <Text style={{ color: r.fines ? C.red : C.text, fontFamily: F.monoBold }}>
                       {money(r.fines)} {r.fineCount ? `(${r.fineCount})` : ''}
                     </Text>
                   </Row>
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>LICENSE</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>License</Text>
                     <ExpiryBadge date={r.p.license_expiry} />
                   </Row>
                   {r.last ? (
                     <Row>
-                      <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>LAST REPORT</Text>
+                      <Text style={{ color: C.muted, fontSize: 12, width: 84 }}>Last report</Text>
                       <Text style={{ color: C.text, fontFamily: F.mono }}>{fmtDate(r.last.log_date)}</Text>
                     </Row>
                   ) : null}

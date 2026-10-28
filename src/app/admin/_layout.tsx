@@ -1,29 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
 import { Drawer, DrawerContentScrollView, DrawerItemList, type DrawerContentComponentProps } from 'expo-router/drawer';
-import { Text, useWindowDimensions, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { Button, C, F, IconBtn, Loading, Row, glow, hexA, textGlow } from '@/components/ui';
+import { Avatar, Button, C, F, GRAD, IconBtn, Loading, Row, glow, hexA } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { clearFleetCache } from '@/lib/data';
 import { personName } from '@/lib/format';
 
 function Brand() {
   return (
-    <Row style={{ paddingHorizontal: 16, paddingVertical: 18 }}>
-      <View
-        style={[
-          { width: 38, height: 38, borderRadius: 10, borderWidth: 1.5, borderColor: C.primary, alignItems: 'center', justifyContent: 'center' },
-          glow(C.primary, 14, 0.5),
-        ]}
-      >
-        <Ionicons name="car-sport" size={20} color={C.primary} />
+    <Row style={{ paddingHorizontal: 18, paddingTop: 22, paddingBottom: 18, gap: 12 }}>
+      <View style={[{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }, glow(C.primary, 18, 0.35)]}>
+        <LinearGradient colors={GRAD as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        <Ionicons name="car-sport" size={22} color="#fff" />
       </View>
       <View>
-        <Text style={{ fontFamily: F.displayBlack, color: C.text, fontSize: 18, letterSpacing: 3, ...textGlow(C.primary, 10) }}>
-          MAC <Text style={{ color: C.magenta }}>CAR</Text>
-        </Text>
-        <Text style={{ fontFamily: F.mono, color: C.muted, fontSize: 10, letterSpacing: 2 }}>ADMIN CONSOLE</Text>
+        <Text style={{ fontFamily: F.display, color: C.text, fontSize: 19 }}>MAC CAR</Text>
+        <Text style={{ fontFamily: F.regular, color: C.muted, fontSize: 12 }}>Fleet management</Text>
       </View>
     </Row>
   );
@@ -32,17 +27,17 @@ function Brand() {
 function Menu(props: DrawerContentComponentProps) {
   const { user, signOut } = useAuth();
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg2 }}>
+    <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.92)' }}>
       <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
         <Brand />
-        <View style={{ height: 1, backgroundColor: C.border, marginBottom: 8 }} />
+
         <DrawerItemList {...props} />
       </DrawerContentScrollView>
-      <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: C.border, gap: 10 }}>
-        <Row>
-          <Ionicons name="shield-checkmark" size={18} color={C.magenta} />
+      <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: C.border, gap: 12 }}>
+        <Row style={{ gap: 10 }}>
+          <Avatar name={personName(user)} size={40} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontFamily: F.monoBold }} numberOfLines={1}>
+            <Text style={{ color: C.text, fontFamily: F.bold }} numberOfLines={1}>
               {personName(user)}
             </Text>
             <Text style={{ color: C.muted, fontSize: 12 }} numberOfLines={1}>
@@ -102,35 +97,36 @@ export default function AdminLayout() {
       backBehavior="history"
       screenOptions={{
         drawerType: wide ? 'permanent' : 'front',
-        drawerStyle: { backgroundColor: C.bg2, borderRightColor: C.border, borderRightWidth: 1, width: 264 },
-        overlayColor: 'rgba(2,4,10,0.7)',
+        drawerStyle: { backgroundColor: 'transparent', borderRightColor: C.border, borderRightWidth: 1, width: 268 },
+        overlayColor: 'rgba(30,27,57,0.3)',
         drawerActiveTintColor: C.primary,
         drawerInactiveTintColor: C.muted,
         drawerActiveBackgroundColor: hexA(C.primary, 0.1),
-        drawerLabelStyle: { fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1 },
-        drawerItemStyle: { borderRadius: 10, marginHorizontal: 10 },
-        headerStyle: { backgroundColor: C.bg2, borderBottomColor: C.border, borderBottomWidth: 1 },
+        drawerLabelStyle: { fontFamily: F.semi, fontSize: 15 },
+        drawerItemStyle: { borderRadius: 16, marginHorizontal: 12, marginVertical: 2 },
+        headerStyle: { backgroundColor: 'transparent', borderBottomWidth: 0 },
+        headerTransparent: false,
         headerShadowVisible: false,
         headerTintColor: C.primary,
-        headerTitleStyle: { fontFamily: F.display, fontSize: 15, letterSpacing: 2, color: C.text },
+        headerTitleStyle: { fontFamily: F.bold, fontSize: 18, color: C.text },
         sceneStyle: { backgroundColor: 'transparent' },
         headerLeft: wide ? () => null : undefined,
       }}
     >
-      <Drawer.Screen name="index" options={{ title: 'DASHBOARD', drawerLabel: 'DASHBOARD', drawerIcon: icon('grid') }} />
-      <Drawer.Screen name="cars" options={{ title: 'CARS', drawerLabel: 'CAR', drawerIcon: icon('car-sport') }} />
-      <Drawer.Screen name="drivers" options={{ title: 'DRIVERS', drawerLabel: 'DRIVER', drawerIcon: icon('people') }} />
-      <Drawer.Screen name="income" options={{ title: 'INCOME', drawerLabel: 'INCOME', drawerIcon: icon('trending-up') }} />
-      <Drawer.Screen name="expenses" options={{ title: 'EXPENSES', drawerLabel: 'EXPENSE', drawerIcon: icon('trending-down') }} />
-      <Drawer.Screen name="reports" options={{ title: 'REPORTS', drawerLabel: 'REPORT', drawerIcon: icon('document-text') }} />
-      <Drawer.Screen name="users" options={{ title: 'USERS', drawerLabel: 'USER', drawerIcon: icon('key') }} />
+      <Drawer.Screen name="index" options={{ headerShown: false, title: 'Dashboard', drawerLabel: 'Dashboard', drawerIcon: icon('grid') }} />
+      <Drawer.Screen name="cars" options={{ title: 'Cars', drawerLabel: 'Car', drawerIcon: icon('car-sport') }} />
+      <Drawer.Screen name="drivers" options={{ title: 'Drivers', drawerLabel: 'Driver', drawerIcon: icon('people') }} />
+      <Drawer.Screen name="income" options={{ title: 'Income', drawerLabel: 'Income', drawerIcon: icon('trending-up') }} />
+      <Drawer.Screen name="expenses" options={{ title: 'Expenses', drawerLabel: 'Expense', drawerIcon: icon('trending-down') }} />
+      <Drawer.Screen name="reports" options={{ title: 'Reports', drawerLabel: 'Report', drawerIcon: icon('document-text') }} />
+      <Drawer.Screen name="users" options={{ title: 'Users', drawerLabel: 'User', drawerIcon: icon('key') }} />
       <Drawer.Screen
         name="car/[id]"
-        options={{ ...hidden, title: 'CAR DETAILS', headerLeft: () => <BackButton fallback="/admin/cars" /> }}
+        options={{ ...hidden, title: 'Car details', headerLeft: () => <BackButton fallback="/admin/cars" /> }}
       />
       <Drawer.Screen
         name="driver/[id]"
-        options={{ ...hidden, title: 'DRIVER DETAILS', headerLeft: () => <BackButton fallback="/admin/drivers" /> }}
+        options={{ ...hidden, title: 'Driver details', headerLeft: () => <BackButton fallback="/admin/drivers" /> }}
       />
     </Drawer>
   );

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { deleteRow } from '@/components/editors';
+import { PageHeader } from '@/components/Greeting';
 import { ExpenseRow, LogRow } from '@/components/rows';
 import { Chips, Empty, ErrorBox, ListCard, Loading, Screen } from '@/components/ui';
 import { useFleet } from '@/lib/data';
@@ -17,11 +18,12 @@ export default function DriverHistory() {
 
   return (
     <Screen refreshing={loading} onRefresh={reload}>
+      <PageHeader title="History" subtitle="Everything you have sent" />
       {error ? <ErrorBox message={error} onRetry={reload} /> : null}
       <Chips<Tab> options={['expenses', 'reports']} value={tab} onChange={setTab} labels={{ expenses: 'My expenses', reports: 'Daily reports' }} />
       <View style={{ height: 8 }} />
       {tab === 'expenses' ? (
-        <ListCard title={`EXPENSES · ${money(sum(d.expenses.filter((e) => e.status !== 'rejected'), (e) => e.amount))}`}>
+        <ListCard title={`Expenses · ${money(sum(d.expenses.filter((e) => e.status !== 'rejected'), (e) => e.amount))}`}>
           {d.expenses.length ? (
             d.expenses.map((e) => (
               <ExpenseRow
@@ -38,7 +40,7 @@ export default function DriverHistory() {
           )}
         </ListCard>
       ) : (
-        <ListCard title={`DAILY REPORTS · ${d.logs.length}`}>
+        <ListCard title={`Daily reports · ${d.logs.length}`}>
           {d.logs.length ? (
             d.logs.map((l) => (
               <LogRow

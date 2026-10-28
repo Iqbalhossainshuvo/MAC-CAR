@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { useFormSheet } from '@/components/FormSheet';
-import { Button, C, Card, Empty, F, H1, IconTile, Loading, Row, Screen } from '@/components/ui';
+import { PageHeader } from '@/components/Greeting';
+import { Button, C, Card, Empty, F, IconTile, Loading, Row, Screen } from '@/components/ui';
 import { saveRow, useFleet } from '@/lib/data';
 import { carName, today } from '@/lib/format';
 import { driverExpenseFields, logFields } from '@/lib/forms';
@@ -66,7 +67,7 @@ export default function DriverAdd() {
 
   return (
     <Screen>
-      <H1 sub="// SEND TO ADMIN">NEW ENTRY</H1>
+      <PageHeader title="New entry" subtitle="Your entry goes to the admin for approval" />
       {!myCars.now ? (
         <Card accent={C.amber}>
           <Empty text="You have no car assigned today, so you cannot add entries. Contact the admin." icon="car-sport-outline" />
@@ -74,7 +75,7 @@ export default function DriverAdd() {
       ) : (
         <>
           <Card>
-            <Text style={{ color: C.muted, fontSize: 12 }}>CAR</Text>
+            <Text style={{ color: C.muted, fontSize: 13, fontFamily: F.semi }}>Car</Text>
             <Text style={{ color: C.text, fontFamily: F.display, fontSize: 18, marginTop: 4 }}>{carName(carById.get(myCars.now.car_id))}</Text>
           </Card>
 

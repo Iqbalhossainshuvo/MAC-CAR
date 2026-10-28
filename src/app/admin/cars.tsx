@@ -81,7 +81,7 @@ export default function Cars() {
                 <Row style={{ alignItems: 'flex-start' }}>
                   <IconTile icon="car-sport" color={car.status === 'active' ? C.primary : C.amber} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: C.text, fontFamily: F.display, fontSize: 16, letterSpacing: 1.5 }}>{car.plate_no}</Text>
+                    <Text style={{ color: C.text, fontFamily: F.display, fontSize: 17 }}>{car.plate_no}</Text>
                     <Text style={{ color: C.muted, fontSize: 13, marginTop: 2 }}>
                       {[car.make, car.model, car.year, car.color].filter(Boolean).join(' · ') || 'No model info'}
                     </Text>
@@ -91,17 +91,17 @@ export default function Cars() {
 
                 <View style={{ marginTop: 12, gap: 6 }}>
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>DRIVER</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>Driver</Text>
                     <Text style={{ color: driver ? C.green : C.amber, fontFamily: F.monoBold, flex: 1 }} numberOfLines={1}>
                       {driver ? personName(driver) : 'Not assigned'}
                     </Text>
                   </Row>
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>ODOMETER</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>Odometer</Text>
                     <Text style={{ color: C.text, fontFamily: F.mono }}>{car.current_odometer != null ? `${num(car.current_odometer)} km` : '-'}</Text>
                   </Row>
                   <Row>
-                    <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>PROFIT</Text>
+                    <Text style={{ color: C.muted, fontSize: 12, width: 72 }}>Profit</Text>
                     <Text style={{ color: m.profit >= 0 ? C.green : C.red, fontFamily: F.monoBold }}>{money(m.profit)}</Text>
                     <Text style={{ color: C.muted, fontSize: 11 }}>
                       ({money(m.income)} − {money(m.expense)})
@@ -110,7 +110,7 @@ export default function Cars() {
                 </View>
 
                 <View style={{ marginTop: 12, gap: 6 }}>
-                  <Text style={{ color: C.primary, fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1 }}>DOCUMENTS</Text>
+                  <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 15, marginBottom: 8 }}>Documents</Text>
                   {docs.length ? (
                     docs.map((x) => (
                       <Row key={x.id} style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
