@@ -166,6 +166,25 @@ function setup() {
   return msg;
 }
 
+/**
+ * Set your own admin password: change NEW_PASSWORD below, then Run this function.
+ * Username stays "admin".
+ */
+function setAdminPassword() {
+  var NEW_PASSWORD = 'CHANGE-ME-123';
+  if (NEW_PASSWORD === 'CHANGE-ME-123' || NEW_PASSWORD.length < 6) {
+    throw new Error('First change NEW_PASSWORD in the code (at least 6 characters), then Run again.');
+  }
+  var admin = findBy_('users', 'username', 'admin');
+  if (!admin) {
+    setup();
+    admin = findBy_('users', 'username', 'admin');
+  }
+  var salt = Utilities.getUuid();
+  updateRow_('users', admin.id, merge_(admin, { salt: salt, password_hash: hash_(NEW_PASSWORD, salt), active: true }));
+  Logger.log('Done. Sign in with  username: admin   password: ' + NEW_PASSWORD);
+}
+
 /** Optional: run once to enable "Sign in with Google". Paste your OAuth Web client ID here first. */
 function setGoogleClientId() {
   var id = 'PASTE-YOUR-CLIENT-ID.apps.googleusercontent.com';
