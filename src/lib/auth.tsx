@@ -12,10 +12,15 @@ interface AuthState {
   loading: boolean;
   user: Profile | null;
   isAdmin: boolean;
-  signIn: (username: string, password: string) => Promise<string | null>;
-  signInWithGoogle: (credential: string) => Promise<string | null>;
+  signIn: (username: string, password: string) => Promise<LoginResult>;
+  signInWithGoogle: (credential: string) => Promise<LoginResult>;
   signOut: () => Promise<void>;
   setUser: (u: Profile) => void;
+}
+
+export interface LoginResult {
+  error: string | null;
+  user?: Profile;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -47,14 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setOnAuthLost(null);
   }, [signOut]);
 
-  const finish = async (p: Promise<Session>): Promise<string | null> => {
+  const finish = async (p: Promise<Session>): Promise<LoginResult> => {
     try {
       const s = await p;
       await setToken(s.token);
       setUser(s.user);
-      return null;
+      return { error: null, user: s.user };
     } catch (e: any) {
-      return e?.message ?? String(e);
+      return { error: e?.message ?? String(e) };
     }
   };
 

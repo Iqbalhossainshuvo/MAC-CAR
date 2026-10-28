@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GoogleButton, googleSignInAvailable } from '@/components/GoogleButton';
-import { Button, C, Card, F, Field, GRAD, IconTile, Input, Row, glow } from '@/components/ui';
+import { Avatar, Button, C, Card, F, Field, GRAD, IconTile, Input, Row, glow, hexA } from '@/components/ui';
 import { isConfigured } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { forgetLogin, getSavedLogins, saveLogin, type SavedLogin } from '@/lib/savedLogins';
 
 export default function Login() {
   const { user, signIn, signInWithGoogle } = useAuth();
@@ -16,23 +17,54 @@ export default function Login() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remember, setRemember] = useState(true);
+  const [saved, setSaved] = useState<SavedLogin[]>([]);
+
+  // Fill in the last saved login
+  useEffect(() => {
+    getSavedLogins().then((list) => {
+      setSaved(list);
+      if (list[0]) {
+        setUsername(list[0].username);
+        setPassword(list[0].password);
+      }
+    });
+  }, []);
 
   if (user) return <Redirect href="/" />;
 
-  const submit = async () => {
-    if (!username.trim() || !password) {
+  const submit = async (u = username, p = password) => {
+    if (!u.trim() || !p) {
       setError('Enter your username and password');
       return;
     }
     setBusy(true);
-    setError(await signIn(username, password));
-    setBusy(false);
+    const r = await signIn(u, p);
+    if (!r.error && remember) await saveLogin(u, p, r.user?.full_name);
+    if (r.error) setBusy(false);
+    setError(r.error);
+  };
+
+  const quick = (sv: SavedLogin) => {
+    setUsername(sv.username);
+    setPassword(sv.password);
+    submit(sv.username, sv.password);
+  };
+
+  const forget = async (sv: SavedLogin) => {
+    await forgetLogin(sv.username);
+    setSaved((list) => list.filter((x) => x.username !== sv.username));
+    if (username === sv.username) {
+      setUsername('');
+      setPassword('');
+    }
   };
 
   const google = async (credential: string) => {
     setBusy(true);
-    setError(await signInWithGoogle(credential));
-    setBusy(false);
+    const r = await signInWithGoogle(credential);
+    if (r.error) setBusy(false);
+    setError(r.error);
   };
 
   return (
@@ -65,6 +97,35 @@ export default function Login() {
           ) : null}
 
           <Card style={{ padding: 20 }}>
+            {saved.length ? (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ color: C.text, fontFamily: F.semi, fontSize: 13, marginBottom: 8 }}>Saved logins · tap to sign in</Text>
+                {saved.map((sv) => (
+                  <Row key={sv.username} style={styles.savedRow}>
+                    <Pressable
+                      onPress={() => quick(sv)}
+                      disabled={busy || !isConfigured}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Sign in as ${sv.username}`}
+                      style={({ pressed }) => [{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Avatar name={sv.name || sv.username} size={40} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 15 }} numberOfLines={1}>
+                          {sv.name || sv.username}
+                        </Text>
+                        <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 12 }}>@{sv.username}</Text>
+                      </View>
+                      <Ionicons name="arrow-forward-circle" size={26} color={C.primary} />
+                    </Pressable>
+                    <Pressable onPress={() => forget(sv)} accessibilityRole="button" accessibilityLabel={`Forget ${sv.username}`} hitSlop={8} style={{ padding: 6 }}>
+                      <Ionicons name="close" size={18} color={C.muted} />
+                    </Pressable>
+                  </Row>
+                ))}
+              </View>
+            ) : null}
+
             {googleSignInAvailable ? (
               <>
                 <GoogleButton onCredential={google} />
@@ -76,6 +137,7 @@ export default function Login() {
               </>
             ) : null}
 
+            <WebForm onSubmit={() => submit()}>
             <Field label="Username">
               <Input
                 value={username}
@@ -85,7 +147,7 @@ export default function Login() {
                 autoCorrect={false}
                 autoComplete="username"
                 accessibilityLabel="Username"
-                onSubmitEditing={submit}
+                onSubmitEditing={() => submit()}
               />
             </Field>
             <Field label="Password">
@@ -98,7 +160,7 @@ export default function Login() {
                   autoCapitalize="none"
                   autoComplete="current-password"
                   accessibilityLabel="Password"
-                  onSubmitEditing={submit}
+                  onSubmitEditing={() => submit()}
                   style={{ paddingRight: 52 }}
                 />
                 <Pressable
@@ -112,6 +174,18 @@ export default function Login() {
               </View>
             </Field>
 
+            </WebForm>
+
+            <Pressable
+              onPress={() => setRemember((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: remember }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, alignSelf: 'flex-start' }}
+            >
+              <Ionicons name={remember ? 'checkbox' : 'square-outline'} size={22} color={remember ? C.primary : C.muted} />
+              <Text style={{ color: C.text, fontFamily: F.semi, fontSize: 14 }}>Remember me on this device</Text>
+            </Pressable>
+
             {error ? (
               <Row style={{ marginBottom: 12 }}>
                 <Ionicons name="alert-circle" size={18} color={C.red} />
@@ -121,19 +195,41 @@ export default function Login() {
               </Row>
             ) : null}
 
-            <Button title="Sign in" icon="arrow-forward" onPress={submit} loading={busy} disabled={!isConfigured} />
+            <Button title="Sign in" icon="arrow-forward" onPress={() => submit()} loading={busy} disabled={!isConfigured} />
           </Card>
 
-          <Text style={{ color: C.muted, textAlign: 'center', fontSize: 13, marginTop: 4, fontFamily: F.regular }}>
-            Drivers: use the username and password from your admin.
-          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+/** On web, a real <form> lets the browser's password manager offer to save and fill the login. */
+function WebForm({ children, onSubmit }: { children: ReactNode; onSubmit: () => void }) {
+  if (Platform.OS !== 'web') return <>{children}</>;
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+      autoComplete="on"
+      style={{ display: 'flex', flexDirection: 'column' }}
+    >
+      {children}
+      <button type="submit" style={{ display: 'none' }} aria-hidden="true" tabIndex={-1} />
+    </form>
+  );
+}
+
 const styles = StyleSheet.create({
+  savedRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: hexA(C.primary, 0.06),
+    marginBottom: 8,
+  },
   logo: { width: 96, height: 96, borderRadius: 30, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   logoShine: { position: 'absolute', top: -30, right: -30, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(255,255,255,0.22)' },
 });

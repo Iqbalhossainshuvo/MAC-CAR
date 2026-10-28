@@ -22,7 +22,7 @@ var TABLES = {
   users: {
     sheet: 'Users',
     cols: ['id', 'username', 'email', 'full_name', 'phone', 'role', 'active', 'nationality', 'iqama_no',
-      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'password_hash', 'salt'],
+      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt'],
     num: [],
     bool: ['active'],
   },
@@ -62,7 +62,7 @@ var TABLES = {
   },
 };
 
-var HIDDEN_USER_FIELDS = ['password_hash', 'salt'];
+var HIDDEN_USER_FIELDS = ['password_hash', 'salt', 'set_password'];
 var READ_ONLY = ['id', 'created_at', 'car_plate', 'driver_name', 'created_by'];
 
 var ENUMS = {
@@ -173,7 +173,7 @@ function setup() {
 function setAdminPassword() {
   var NEW_PASSWORD = 'CHANGE-ME-123';
   if (NEW_PASSWORD === 'CHANGE-ME-123' || NEW_PASSWORD.length < 6) {
-    throw new Error('First change NEW_PASSWORD in the code (at least 6 characters), then Run again.');
+    throw new Error('Password NOT changed. First replace CHANGE-ME-123 with your own password (6+ characters), click Save, then Run again.');
   }
   var admin = findBy_('users', 'username', 'admin');
   if (!admin) {
@@ -182,7 +182,9 @@ function setAdminPassword() {
   }
   var salt = Utilities.getUuid();
   updateRow_('users', admin.id, merge_(admin, { salt: salt, password_hash: hash_(NEW_PASSWORD, salt), active: true }));
-  Logger.log('Done. Sign in with  username: admin   password: ' + NEW_PASSWORD);
+  _cache = {};
+  passwordLogin_('admin', NEW_PASSWORD); // self-check: throws if login would fail
+  Logger.log('Done and checked. Sign in with  username: admin   password: ' + NEW_PASSWORD);
 }
 
 /** Optional: run once to enable "Sign in with Google". Paste your OAuth Web client ID here first. */
@@ -245,13 +247,30 @@ function session_(user) {
 
 function passwordLogin_(username, password) {
   var key = String(username || '').trim().toLowerCase();
-  if (!key || !password) throw new Error('Enter username and password');
+  var pw = String(password || '');
+  if (!key || !pw) throw new Error('Enter username and password');
   var user = readTable_('users').filter(function (u) {
     return String(u.username || '').toLowerCase() === key || String(u.email || '').toLowerCase() === key;
   })[0];
-  if (!user || !user.salt || hash_(String(password), user.salt) !== user.password_hash) {
-    throw new Error('Wrong username or password');
+  if (!user) throw new Error('Username "' + key + '" not found');
+
+  // Password typed into the "set_password" column of the Users sheet → becomes the new password.
+  if (user.set_password) {
+    user = withLock_(function () {
+      var salt = Utilities.getUuid();
+      return updateRow_('users', user.id, merge_(user, {
+        salt: salt,
+        password_hash: hash_(String(user.set_password).trim(), salt),
+        set_password: null,
+      }));
+    });
   }
+
+  if (!user.salt || !user.password_hash) {
+    throw new Error('No password is set for "' + key + '". Type one in the set_password column of the Users sheet.');
+  }
+  var ok = hash_(pw, user.salt) === user.password_hash || hash_(pw.trim(), user.salt) === user.password_hash;
+  if (!ok) throw new Error('Wrong password for "' + key + '"');
   if (!user.active) throw new Error('Your account is not active. Contact the admin.');
   return session_(user);
 }

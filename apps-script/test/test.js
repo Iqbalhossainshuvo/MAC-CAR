@@ -35,5 +35,15 @@ r=call({action:'data',token:A.replace(/.$/,'x')});ok(!r.ok,'tampered token rejec
 ctx._props.GOOGLE_CLIENT_ID='cid';ctx._google={aud:'cid',email:'Owner@gmail.com',email_verified:'true',name:'Owner'};
 r=call({action:'googleLogin',credential:'t'});ok(r.ok&&r.data.user.role==='admin','owner google login');
 ctx._google={aud:'cid',email:'stranger@gmail.com',email_verified:'true'};r=call({action:'googleLogin',credential:'t'});ok(!r.ok,'stranger google blocked');
-console.log(sheets['Expenses'].data.slice(0,2));
+
+// --- password recovery via the set_password column
+r=call({action:'login',username:'nobody',password:'x'});ok(!r.ok&&/not found/.test(r.error),'unknown username message');
+r=call({action:'login',username:'admin',password:'bad'});ok(!r.ok&&/Wrong password/.test(r.error),'wrong password message');
+{const sh=sheets['Users'];const head=sh.data[0];const ci=head.indexOf('set_password');const ri=sh.data.findIndex(x=>x[1]==='admin');sh.data[ri][ci]=123456;}
+r=call({action:'login',username:'admin',password:'123456'});ok(r.ok,'set_password from sheet works (number cell)');
+{const sh=sheets['Users'];const ci=sh.data[0].indexOf('set_password');const ri=sh.data.findIndex(x=>x[1]==='admin');ok(sh.data[ri][ci]==='','set_password cleared after use');}
+r=call({action:'login',username:'admin',password:'123456 '});ok(r.ok,'trailing space tolerated');
+r=call({action:'data',token:r.data.token});ok(r.ok&&r.data.profiles.every(p=>!('set_password' in p)),'set_password never sent to app');
+
+
 console.log(fails?fails+' FAILED':'ALL PASSED');

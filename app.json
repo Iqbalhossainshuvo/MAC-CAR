@@ -40,7 +40,8 @@
           "imageWidth": 200,
           "backgroundColor": "#F2F0FF"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "scheme": "maccar",
     "backgroundColor": "#F2F0FF"
