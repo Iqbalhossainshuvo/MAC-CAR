@@ -30,7 +30,8 @@ import {
   StatGrid,
 } from '@/components/ui';
 import { saveRow, useFleet } from '@/lib/data';
-import { carName, expiryLevel, expiryText, fmtDate, money, personName, today } from '@/lib/format';
+import { carName, expiryLevel, expiryText, fmtDate, fromCents, money, personName, toCents, today } from '@/lib/format';
+import { driverCost } from '@/lib/payroll';
 import { useAuth } from '@/lib/auth';
 import { carMoney, currentAssignment, expenseByCategory, expiryAlerts, lastMonths, money as sumMoney, PERIOD_LABEL, periodRange, type Period } from '@/lib/stats';
 import { CATEGORY_LABEL } from '@/lib/types';
@@ -49,6 +50,8 @@ export default function Dashboard() {
     const activeCars = d.cars.filter((c) => c.status === 'active').length;
     const inShop = d.cars.filter((c) => c.status === 'maintenance').length;
     const m = sumMoney(d.incomes, d.expenses, from, to);
+    const drivers$ = driverCost(d, from, to);
+    const net = fromCents(toCents(m.profit) - toCents(drivers$));
     const perCar = d.cars
       .filter((c) => c.status !== 'sold')
       .map((c) => ({ car: c, ...carMoney(d, c.id, from, to) }))
@@ -61,6 +64,8 @@ export default function Dashboard() {
       activeCars,
       inShop,
       m,
+      drivers$,
+      net,
       perCar,
       pending,
       cats: expenseByCategory(d.expenses, from, to),
@@ -84,7 +89,7 @@ export default function Dashboard() {
   const docsOk = d.docs.length ? d.docs.filter((x) => expiryLevel(x.expiry_date) === 'ok').length / d.docs.length : 1;
   const onRoad = d.cars.length ? stats.activeCars / d.cars.length : 0;
   const assigned = stats.activeCars ? (stats.activeCars - stats.unassigned) / stats.activeCars : 0;
-  const margin = stats.m.income > 0 ? Math.max(0, stats.m.profit / stats.m.income) : 0;
+  const margin = stats.m.income > 0 ? Math.max(0, stats.net / stats.m.income) : 0;
 
   return (
     <Screen refreshing={loading} onRefresh={reload}>
@@ -123,10 +128,10 @@ export default function Dashboard() {
               <Text style={{ color: 'rgba(255,255,255,0.9)', fontFamily: F.semi, fontSize: 14 }}>Net profit · {PERIOD_LABEL[period]}</Text>
             </Row>
             <Text style={{ color: '#fff', fontFamily: F.display, fontSize: 32, marginTop: 12, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>
-              {money(stats.m.profit)}
+              {money(stats.net)}
             </Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: F.regular, fontSize: 13, marginTop: 4 }}>
-              Income {money(stats.m.income)} · Expense {money(stats.m.expense)}
+              Income {money(stats.m.income)} · Car expenses {money(stats.m.expense)} · Driver salaries {money(stats.drivers$)}
             </Text>
           </View>
           <Pressable
@@ -167,7 +172,7 @@ export default function Dashboard() {
 
       <Columns>
         <Col>
-          <ListCard title="Profit by car">
+          <ListCard title="Profit by car (before driver salaries)">
             <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
               {stats.perCar.length ? (
                 stats.perCar.map((x) => (

@@ -16,6 +16,8 @@ export interface Profile {
   notes: string | null;
   created_at: string;
   has_password?: boolean;
+  /** driver's fixed monthly salary (SAR) */
+  monthly_salary?: number | null;
 }
 
 export type CarStatus = 'active' | 'maintenance' | 'inactive' | 'sold';
@@ -101,6 +103,24 @@ export interface Expense {
   paid_by: 'company' | 'driver';
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
+  /** fine forgiven by the admin: not taken from the driver's salary */
+  waived?: boolean;
+}
+
+export type PayType = 'salary' | 'bonus' | 'advance' | 'deduction' | 'payment' | 'refund';
+
+/** One line in a driver's salary account (Payroll sheet) */
+export interface PayEntry {
+  id: string;
+  driver_id: string;
+  type: PayType;
+  amount: number;
+  entry_date: string;
+  /** YYYY-MM, for salary entries */
+  month: string | null;
+  method: 'cash' | 'bank' | 'other' | null;
+  description: string | null;
+  created_at: string;
 }
 
 export interface DailyLog {
@@ -127,6 +147,20 @@ export const DOC_TYPES = [
   'Operating Card',
   'Tamm Authorization',
   'Other',
+];
+
+/** Categories offered in new expense forms. Driver salaries are kept in the salary account instead. */
+export const EXPENSE_INPUT_CATEGORIES: ExpenseCategory[] = [
+  'fuel',
+  'maintenance',
+  'repair',
+  'fine',
+  'toll',
+  'wash',
+  'tyre',
+  'insurance',
+  'registration',
+  'other',
 ];
 
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [

@@ -5,7 +5,7 @@ import { Alert, AppState, Platform } from 'react-native';
 
 import { api, ApiError } from './api';
 import { useAuth } from './auth';
-import type { Assignment, Car, CarDocument, DailyLog, Expense, Income, Profile } from './types';
+import type { Assignment, Car, CarDocument, DailyLog, Expense, Income, PayEntry, Profile } from './types';
 
 /*
  * Local-first data store
@@ -19,7 +19,7 @@ import type { Assignment, Car, CarDocument, DailyLog, Expense, Income, Profile }
  *   is offline, the outbox waits and retries; it survives app restarts.
  */
 
-export type Table = 'cars' | 'car_documents' | 'assignments' | 'incomes' | 'expenses' | 'daily_logs';
+export type Table = 'cars' | 'car_documents' | 'assignments' | 'incomes' | 'expenses' | 'daily_logs' | 'payroll';
 
 export interface FleetData {
   me: Profile | null;
@@ -30,6 +30,7 @@ export interface FleetData {
   incomes: Income[];
   expenses: Expense[];
   logs: DailyLog[];
+  payroll: PayEntry[];
 }
 
 export const EMPTY_FLEET: FleetData = {
@@ -41,6 +42,7 @@ export const EMPTY_FLEET: FleetData = {
   incomes: [],
   expenses: [],
   logs: [],
+  payroll: [],
 };
 
 type ListKey = Exclude<keyof FleetData, 'me'>;
@@ -51,6 +53,7 @@ const LIST_OF: Record<Table, ListKey> = {
   incomes: 'incomes',
   expenses: 'expenses',
   daily_logs: 'logs',
+  payroll: 'payroll',
 };
 
 const byDesc = <T>(key: keyof T) => (a: T, b: T) => String(b[key] ?? '').localeCompare(String(a[key] ?? ''));
@@ -65,6 +68,7 @@ function sortFleet(d: FleetData): FleetData {
     incomes: [...d.incomes].sort(byDesc<Income>('income_date')),
     expenses: [...d.expenses].sort(byDesc<Expense>('expense_date')),
     logs: [...d.logs].sort(byDesc<DailyLog>('log_date')),
+    payroll: [...(d.payroll ?? [])].sort(byDesc<PayEntry>('entry_date')),
   };
 }
 
@@ -131,7 +135,7 @@ async function initStore(uid: string) {
     const [cached, box] = await Promise.all([AsyncStorage.getItem(cacheKey()), AsyncStorage.getItem(outboxKey())]);
     if (userKey !== uid) return;
     if (cached) {
-      state = JSON.parse(cached);
+      state = { ...EMPTY_FLEET, ...JSON.parse(cached) }; // older caches may miss newer lists
       hydrated = true;
     }
     if (box) outbox = JSON.parse(box);

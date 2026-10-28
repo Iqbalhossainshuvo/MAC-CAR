@@ -88,13 +88,35 @@ const blur = isWeb ? ({ backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blu
 
 // ---------------------------------------------------------------- background
 
+/** The soft lavender gradient with glow blobs, drawn behind a screen. */
+export function Backdrop() {
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden', backgroundColor: C.bg }]}>
+      <LinearGradient colors={['#ECE8FF', '#F6F4FF', '#EEF3FF']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <View style={[s.blob, { top: -140, left: -120, backgroundColor: 'rgba(155,123,255,0.28)' }]} />
+      <View style={[s.blob, { top: 260, right: -170, backgroundColor: 'rgba(106,139,255,0.20)' }]} />
+      <View style={[s.blob, { bottom: -160, left: -60, backgroundColor: 'rgba(224,85,159,0.12)' }]} />
+    </View>
+  );
+}
+
 export function AppBackground({ children }: { children: ReactNode }) {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, overflow: 'hidden', width: '100%', maxWidth: '100%' as any }}>
-      <LinearGradient colors={['#ECE8FF', '#F6F4FF', '#EEF3FF']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
-      <View pointerEvents="none" style={[s.blob, { top: -140, left: -120, backgroundColor: 'rgba(155,123,255,0.28)' }]} />
-      <View pointerEvents="none" style={[s.blob, { top: 260, right: -170, backgroundColor: 'rgba(106,139,255,0.20)' }]} />
-      <View pointerEvents="none" style={[s.blob, { bottom: -160, left: -60, backgroundColor: 'rgba(224,85,159,0.12)' }]} />
+      <Backdrop />
+      {children}
+    </View>
+  );
+}
+
+/**
+ * Every screen paints its own solid background, so when you switch tabs or menu
+ * items the previous screen never shows through.
+ */
+export function Page({ children }: { children: ReactNode }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg, overflow: 'hidden' }}>
+      <Backdrop />
       {children}
     </View>
   );
@@ -114,6 +136,7 @@ export function Screen({
   onRefresh?: () => void;
 }) {
   return (
+    <Page>
     <ScrollView
       style={{ flex: 1, backgroundColor: 'transparent' }}
       contentContainerStyle={s.screen}
@@ -124,6 +147,7 @@ export function Screen({
     >
       {children}
     </ScrollView>
+    </Page>
   );
 }
 
@@ -222,10 +246,12 @@ export function Divider() {
 
 export function Loading({ text = 'Syncing with Google Sheets…' }: { text?: string }) {
   return (
-    <View style={{ padding: 40, alignItems: 'center', gap: 12 }}>
-      <ActivityIndicator color={C.primary} size="large" />
-      <Muted>{text}</Muted>
-    </View>
+    <Page>
+      <View style={{ padding: 40, alignItems: 'center', gap: 12 }}>
+        <ActivityIndicator color={C.primary} size="large" />
+        <Muted>{text}</Muted>
+      </View>
+    </Page>
   );
 }
 

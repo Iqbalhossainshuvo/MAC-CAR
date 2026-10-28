@@ -11,7 +11,7 @@ import { personName } from '@/lib/format';
 
 function Brand() {
   return (
-    <Row style={{ paddingHorizontal: 18, paddingTop: 22, paddingBottom: 18, gap: 12 }}>
+    <Row style={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 10, gap: 12 }}>
       <View style={[{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }, glow(C.primary, 18, 0.35)]}>
         <LinearGradient colors={GRAD as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         <Ionicons name="car-sport" size={22} color="#fff" />
@@ -103,19 +103,20 @@ export default function AdminLayout() {
         drawerInactiveTintColor: C.muted,
         drawerActiveBackgroundColor: hexA(C.primary, 0.1),
         drawerLabelStyle: { fontFamily: F.semi, fontSize: 15 },
-        drawerItemStyle: { borderRadius: 16, marginHorizontal: 12, marginVertical: 2 },
+        drawerItemStyle: { borderRadius: 16, marginHorizontal: 12, marginVertical: 0 },
         headerStyle: { backgroundColor: 'transparent', borderBottomWidth: 0 },
         headerTransparent: false,
         headerShadowVisible: false,
         headerTintColor: C.primary,
         headerTitleStyle: { fontFamily: F.bold, fontSize: 18, color: C.text },
-        sceneStyle: { backgroundColor: 'transparent' },
+        sceneStyle: { backgroundColor: C.bg },
         headerLeft: wide ? () => null : undefined,
       }}
     >
       <Drawer.Screen name="index" options={{ headerShown: false, title: 'Dashboard', drawerLabel: 'Dashboard', drawerIcon: icon('grid') }} />
       <Drawer.Screen name="cars" options={{ title: 'Cars', drawerLabel: 'Car', drawerIcon: icon('car-sport') }} />
       <Drawer.Screen name="drivers" options={{ title: 'Drivers', drawerLabel: 'Driver', drawerIcon: icon('people') }} />
+      <Drawer.Screen name="salary" options={{ title: 'Salary', drawerLabel: 'Salary', drawerIcon: icon('wallet') }} />
       <Drawer.Screen name="income" options={{ title: 'Income', drawerLabel: 'Income', drawerIcon: icon('trending-up') }} />
       <Drawer.Screen name="expenses" options={{ title: 'Expenses', drawerLabel: 'Expense', drawerIcon: icon('trending-down') }} />
       <Drawer.Screen name="reports" options={{ title: 'Reports', drawerLabel: 'Report', drawerIcon: icon('document-text') }} />

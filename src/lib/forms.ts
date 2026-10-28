@@ -2,7 +2,7 @@ import type { FieldDef } from '@/components/FormSheet';
 import type { Option } from '@/components/ui';
 
 import { cap, carName, personName } from './format';
-import { CAR_STATUSES, CATEGORY_LABEL, DOC_TYPES, DRIVER_DOC_TYPES, EXPENSE_CATEGORIES, type Car, type Profile } from './types';
+import { CAR_STATUSES, CATEGORY_LABEL, DOC_TYPES, DRIVER_DOC_TYPES, EXPENSE_INPUT_CATEGORIES, type Car, type Profile } from './types';
 
 export const carOptions = (cars: Car[]): Option[] =>
   cars.map((c) => ({ value: c.id, label: carName(c), sub: cap(c.status) }));
@@ -74,7 +74,7 @@ export const incomeFields = (cars: Car[], people: Profile[]): FieldDef[] => [
   { key: 'description', label: 'Description', type: 'multiline' },
 ];
 
-const categoryOptions = opts(EXPENSE_CATEGORIES, CATEGORY_LABEL);
+const categoryOptions = opts(EXPENSE_INPUT_CATEGORIES, CATEGORY_LABEL);
 
 export const expenseFields = (cars: Car[], people: Profile[]): FieldDef[] => [
   { key: 'car_id', label: 'Car', type: 'select', options: carOptions(cars), required: true },
@@ -138,6 +138,7 @@ export const logFields = (cars: Car[]): FieldDef[] => [
 export const profileFields: FieldDef[] = [
   { key: 'full_name', label: 'Full name', required: true },
   { key: 'phone', label: 'Phone', type: 'phone' },
+  { key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' },
   { key: 'nationality', label: 'Nationality' },
   { key: 'iqama_no', label: 'Iqama / ID number' },
   { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
@@ -162,6 +163,7 @@ export const newUserFields: FieldDef[] = [
     ],
     required: true,
   },
+  { key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' },
   { key: 'license_no', label: 'Driving license number' },
   { key: 'license_expiry', label: 'License expiry', type: 'date' },
   { key: 'iqama_no', label: 'Iqama / ID number' },
@@ -184,10 +186,45 @@ export const editUserFields: FieldDef[] = [
     ],
     required: true,
   },
+  { key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' },
   { key: 'nationality', label: 'Nationality' },
   { key: 'iqama_no', label: 'Iqama / ID number' },
   { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
   { key: 'license_no', label: 'Driving license number' },
   { key: 'license_expiry', label: 'License expiry', type: 'date' },
   { key: 'notes', label: 'Notes', type: 'multiline' },
+];
+
+const PAY_HINT: Record<string, string> = {
+  salary: 'Adds this month\'s salary to the driver\'s account.',
+  bonus: 'Extra money for good work. Adds to what the company owes.',
+  advance: 'Cash given before salary. It is taken from the salary.',
+  deduction: 'Any other amount taken from the salary (damage, loan…).',
+  payment: 'Money actually paid to the driver (cash or bank).',
+  refund: 'Money the driver gave back to the company.',
+};
+
+/** Form for one salary-account entry */
+export const payFields = (type: string, months: Option[]): FieldDef[] => [
+  ...(type === 'salary'
+    ? [{ key: 'month', label: 'Salary month', type: 'select' as const, options: months, required: true }]
+    : []),
+  { key: 'amount', label: 'Amount (SAR)', type: 'number', required: true, hint: PAY_HINT[type] },
+  { key: 'entry_date', label: 'Date', type: 'date', required: true },
+  ...(type === 'advance' || type === 'payment' || type === 'refund'
+    ? [
+        {
+          key: 'method',
+          label: 'Paid by',
+          type: 'select' as const,
+          options: [
+            { value: 'cash', label: 'Cash' },
+            { value: 'bank', label: 'Bank transfer' },
+            { value: 'other', label: 'Other' },
+          ],
+          allowEmpty: true,
+        },
+      ]
+    : []),
+  { key: 'description', label: 'Note', type: 'multiline', placeholder: 'Why / details' },
 ];

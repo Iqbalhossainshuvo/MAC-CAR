@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 
 import { deleteRow, editAssignment, editDoc, editDriverProfile, editExpense, resetPassword } from '@/components/editors';
 import { useFormSheet } from '@/components/FormSheet';
+import { SalaryAccount } from '@/components/SalaryAccount';
 import { AssignmentRow, DocRow, ExpenseRow, LogRow } from '@/components/rows';
 import {
   Badge,
@@ -123,6 +124,9 @@ export default function DriverDetails() {
         <StatCard label="Driver paid" value={money(v.owed)} icon="wallet" tone="amber" sub="Paid from own pocket" />
         <StatCard label="Km reported" value={num(v.km)} icon="speedometer" sub={`Cash collected ${money(v.cash)}`} />
       </StatGrid>
+
+      <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginBottom: 10 }}>Salary & account</Text>
+      <SalaryAccount d={d} driver={p} admin open={form.open} reload={reload} />
 
       <Columns>
         <Col>

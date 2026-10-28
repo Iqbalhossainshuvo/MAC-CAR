@@ -45,7 +45,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test:backend": "node apps-script/test/test.js apps-script/Code.gs",
-    "build:web": "expo export -p web"
+    "build:web": "expo export -p web",
+    "test:payroll": "tsc --ignoreConfig --outDir .test-build --module commonjs --target es2020 --skipLibCheck --jsx react-jsx --esModuleInterop src/lib/payroll.ts && node tests/payroll.test.js"
   },
   "private": true
 }

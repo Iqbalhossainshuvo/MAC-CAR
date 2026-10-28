@@ -46,7 +46,7 @@ export default function RootLayout() {
           <AuthProvider>
             <StatusBar style="dark" />
             <AppBackground>
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg } }} />
               <SyncPill />
             </AppBackground>
           </AuthProvider>

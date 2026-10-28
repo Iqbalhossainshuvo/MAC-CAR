@@ -1,12 +1,13 @@
 import type { FleetData } from './data';
-import { cap, carName, expiryText, fmtDate, inRange, money as sar, num, personName, sum } from './format';
+import { cap, carName, expiryText, fmtDate, fromCents, inRange, money as sar, num, personName, sum, toCents } from './format';
 import type { ReportSpec } from './print';
+import { driverAccount, LINE_LABEL } from './payroll';
 import { counted } from './stats';
 import { CATEGORY_LABEL, type Assignment, type CarDocument, type DailyLog, type Expense, type Income } from './types';
 
-export type ReportPart = 'income' | 'expense' | 'fines' | 'logs' | 'docs' | 'assignments';
+export type ReportPart = 'income' | 'expense' | 'fines' | 'logs' | 'docs' | 'assignments' | 'salary';
 
-export const ALL_PARTS: ReportPart[] = ['income', 'expense', 'fines', 'logs', 'docs', 'assignments'];
+export const ALL_PARTS: ReportPart[] = ['income', 'expense', 'fines', 'logs', 'docs', 'assignments', 'salary'];
 
 export const PART_LABEL: Record<ReportPart, string> = {
   income: 'Income',
@@ -15,6 +16,7 @@ export const PART_LABEL: Record<ReportPart, string> = {
   logs: 'Daily reports',
   docs: 'Documents',
   assignments: 'Driver history',
+  salary: 'Salary account',
 };
 
 export interface ReportFilter {
@@ -74,7 +76,7 @@ export function runReport(d: FleetData, f: ReportFilter): ReportResult {
     totals: {
       income,
       expense,
-      profit: income - expense,
+      profit: fromCents(toCents(income) - toCents(expense)),
       fines: sum(fines.filter(counted), (e) => e.amount),
       km: sum(logs, (l) => (l.end_odometer != null && l.start_odometer != null ? l.end_odometer - l.start_odometer : 0)),
       cash: sum(logs, (l) => l.cash_collected),
@@ -185,6 +187,59 @@ export function reportSpec(d: FleetData, f: ReportFilter, r: ReportResult, title
       columns: ['Car', 'Driver', 'From', 'To', 'Notes'],
       rows: r.assignments.map((a) => [car(a.car_id), person(a.driver_id), fmtDate(a.start_date), a.end_date ? fmtDate(a.end_date) : 'Now', a.notes ?? '-']),
     });
+
+  if (has('salary')) {
+    const drivers = d.profiles.filter((p) => p.role === 'driver' && (!f.driverId || p.id === f.driverId));
+    if (f.driverId && drivers[0]) {
+      const acc = driverAccount(d, drivers[0].id);
+      const lines = acc.lines.filter((l) => inRange(l.date, f.from, f.to));
+      spec.sections.push({
+        title: `Salary account · ${personName(drivers[0])}`,
+        columns: ['Date', 'Entry', 'Details', 'Added (+)', 'Taken (−)', 'Balance'],
+        numeric: [3, 4, 5],
+        rows: lines.map((l) => [
+          fmtDate(l.date),
+          LINE_LABEL[l.kind] + (l.sign === 0 ? ' (waived)' : ''),
+          l.description || '-',
+          l.sign > 0 ? sar(l.amount) : '',
+          l.sign < 0 ? sar(l.amount) : l.sign === 0 ? '0' : '',
+          sar(l.balance),
+        ]),
+        footer: ['', '', '', '', 'Balance now', sar(acc.balance)],
+      });
+      spec.summary?.push([acc.balance >= 0 ? 'Company owes driver' : 'Driver owes company', sar(Math.abs(acc.balance))]);
+    } else {
+      spec.sections.push({
+        title: 'Salary accounts',
+        columns: ['Driver', 'Salary', 'Incentive', 'Advances', 'Fines', 'Deductions', 'Paid', 'Balance now'],
+        numeric: [1, 2, 3, 4, 5, 6, 7],
+        rows: drivers.map((p) => {
+          const acc = driverAccount(d, p.id);
+          const t = { salary: 0, bonus: 0, advances: 0, fines: 0, deductions: 0, paid: 0 };
+          for (const m of acc.months) {
+            const mid = `${m.month}-15`;
+            if (!inRange(mid, f.from ? f.from.slice(0, 7) + '-01' : undefined, f.to)) continue;
+            t.salary += toCents(m.salary);
+            t.bonus += toCents(m.bonus);
+            t.advances += toCents(m.advances);
+            t.fines += toCents(m.fines);
+            t.deductions += toCents(m.deductions);
+            t.paid += toCents(m.paid);
+          }
+          return [
+            personName(p),
+            sar(fromCents(t.salary)),
+            sar(fromCents(t.bonus)),
+            sar(fromCents(t.advances)),
+            sar(fromCents(t.fines)),
+            sar(fromCents(t.deductions)),
+            sar(fromCents(t.paid)),
+            sar(acc.balance),
+          ];
+        }),
+      });
+    }
+  }
 
   return spec;
 }

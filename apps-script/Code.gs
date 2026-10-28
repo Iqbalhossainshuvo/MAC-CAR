@@ -22,8 +22,8 @@ var TABLES = {
   users: {
     sheet: 'Users',
     cols: ['id', 'username', 'email', 'full_name', 'phone', 'role', 'active', 'nationality', 'iqama_no',
-      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt'],
-    num: [],
+      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt', 'monthly_salary'],
+    num: ['monthly_salary'],
     bool: ['active'],
   },
   cars: {
@@ -52,8 +52,15 @@ var TABLES = {
   expenses: {
     sheet: 'Expenses',
     cols: ['id', 'car_id', 'car_plate', 'driver_id', 'driver_name', 'category', 'amount', 'expense_date',
-      'description', 'reference', 'odometer', 'paid_by', 'status', 'created_by', 'created_at'],
+      'description', 'reference', 'odometer', 'paid_by', 'status', 'created_by', 'created_at', 'waived'],
     num: ['amount', 'odometer'],
+    bool: ['waived'],
+  },
+  payroll: {
+    sheet: 'Payroll',
+    cols: ['id', 'driver_id', 'driver_name', 'type', 'amount', 'entry_date', 'month', 'method', 'description',
+      'created_by', 'created_at'],
+    num: ['amount'],
   },
   daily_logs: {
     sheet: 'DailyLogs',
@@ -76,6 +83,10 @@ var ENUMS = {
     status: ['pending', 'approved', 'rejected'],
   },
   users: { role: ['admin', 'driver'] },
+  payroll: {
+    type: ['salary', 'bonus', 'advance', 'deduction', 'payment', 'refund'],
+    method: ['cash', 'bank', 'other'],
+  },
 };
 
 var REQUIRED = {
@@ -85,7 +96,19 @@ var REQUIRED = {
   incomes: ['car_id', 'amount', 'income_date', 'payment_status'],
   expenses: ['car_id', 'category', 'amount', 'expense_date', 'paid_by', 'status'],
   daily_logs: ['car_id', 'driver_id', 'log_date', 'work_details'],
+  payroll: ['driver_id', 'type', 'amount', 'entry_date'],
 };
+
+var MONEY_FIELDS = ['amount', 'purchase_price', 'monthly_salary'];
+
+/** Round money to 2 decimals exactly (avoids 2500.555 → 2500.55 floating-point errors). */
+function round2_(v) {
+  var n = Number(v);
+  if (!isFinite(n)) return n;
+  var str = String(Math.abs(n));
+  var r = str.indexOf('e') >= 0 ? Math.round(Math.abs(n) * 100) / 100 : Number(Math.round(Number(str + 'e2')) + 'e-2');
+  return n < 0 ? -r : r;
+}
 
 var DATE_FIELDS = ['iqama_expiry', 'license_expiry', 'purchase_date', 'issue_date', 'expiry_date', 'start_date',
   'end_date', 'income_date', 'period_from', 'period_to', 'expense_date', 'log_date'];
@@ -362,6 +385,7 @@ function loadData_(me) {
       incomes: readTable_('incomes'),
       expenses: expenses,
       logs: logs,
+      payroll: readTable_('payroll'),
     };
   }
 
@@ -382,6 +406,7 @@ function loadData_(me) {
     incomes: [],
     expenses: expenses.filter(function (x) { return x.driver_id === me.id; }),
     logs: logs.filter(function (l) { return l.driver_id === me.id; }),
+    payroll: readTable_('payroll').filter(function (x) { return x.driver_id === me.id; }),
   };
 }
 
@@ -404,6 +429,10 @@ function clean_(table, row) {
     if (v !== null && def.num.indexOf(c) >= 0) {
       v = Number(v);
       if (isNaN(v)) throw new Error(c + ' must be a number');
+      if (MONEY_FIELDS.indexOf(c) >= 0) {
+        if (v < 0) throw new Error(c.replace(/_/g, ' ') + ' cannot be negative');
+        v = round2_(v); // exact halala rounding (2500.555 → 2500.56)
+      }
     }
     if (v !== null && DATE_FIELDS.indexOf(c) >= 0 && !/^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
       throw new Error(c + ' must be a date (YYYY-MM-DD)');
@@ -444,6 +473,7 @@ function save_(me, table, input) {
   var saved;
 
   if (isAdmin_(me)) {
+    if (table === 'payroll') checkPayroll_(id ? merge_(findBy_('payroll', 'id', id) || {}, row) : row, id);
     if (table === 'cars' && row.plate_no) {
       var dup = readTable_('cars').filter(function (c) {
         return String(c.plate_no).toLowerCase() === String(row.plate_no).toLowerCase() && c.id !== id;
@@ -467,6 +497,7 @@ function save_(me, table, input) {
     if (id) throw new Error('Only an admin can edit saved entries');
     if (table !== 'expenses' && table !== 'daily_logs') throw new Error('Not allowed');
     row.driver_id = me.id;
+    delete row.waived; // only the admin can waive a fine
     if (table === 'expenses') {
       row.status = 'pending';
       row.created_by = me.id;
@@ -479,6 +510,20 @@ function save_(me, table, input) {
 
   bumpOdometer_(table, saved);
   return saved;
+}
+
+/** Salary account rules, so the driver's balance is always right. */
+function checkPayroll_(row, id) {
+  if (!(Number(row.amount) > 0)) throw new Error('Amount must be more than 0');
+  var drv = findBy_('users', 'id', row.driver_id);
+  if (!drv || drv.role !== 'driver') throw new Error('Choose a driver');
+  if (row.type === 'salary') {
+    if (!/^\d{4}-\d{2}$/.test(String(row.month || ''))) throw new Error('Choose the salary month');
+    var dup = readTable_('payroll').some(function (x) {
+      return x.type === 'salary' && x.driver_id === row.driver_id && x.month === row.month && x.id !== id;
+    });
+    if (dup) throw new Error('Salary for ' + row.month + ' is already added for ' + (drv.full_name || drv.username));
+  }
 }
 
 function merge_(old, patch) {
@@ -570,7 +615,7 @@ function saveUser_(me, input) {
     saved = updateRow_('users', id, merged);
     // keep helper names in other sheets in sync
     if (old.full_name !== saved.full_name) {
-      ['assignments', 'incomes', 'expenses', 'daily_logs'].forEach(function (t) {
+      ['assignments', 'incomes', 'expenses', 'daily_logs', 'payroll', 'car_documents'].forEach(function (t) {
         updateWhere_(t, 'driver_id', id, { driver_name: saved.full_name || saved.username });
       });
     }

@@ -73,6 +73,7 @@ export function ExpenseRow({
           <Row style={{ gap: 6, flexWrap: 'wrap' }}>
             {e.status !== 'approved' ? <Badge text={e.status} tone={statusTone(e.status)} /> : null}
             {e.paid_by === 'driver' ? <Badge text="Paid by driver" tone="blue" /> : null}
+            {e.category === 'fine' && e.waived ? <Badge text="Fine waived" tone="gray" /> : null}
           </Row>
           {onApprove || onReject || onEdit || onDelete ? (
             <Row style={{ gap: 8, marginTop: 4, flexWrap: 'wrap' }}>

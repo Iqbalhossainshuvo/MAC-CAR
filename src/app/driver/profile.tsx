@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 import { useFormSheet } from '@/components/FormSheet';
 import { PageHeader } from '@/components/Greeting';
 import { DocRow } from '@/components/rows';
+import { SalaryAccount } from '@/components/SalaryAccount';
 import { Avatar, Badge, Button, C, Card, Empty, ExpiryBadge, F, KV, ListCard, Row, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -73,6 +74,13 @@ export default function DriverProfile() {
         <KV label="License no." value={me?.license_no ?? '-'} />
         <KV label="License expiry" value={<ExpiryBadge date={me?.license_expiry} />} />
       </Card>
+
+      {me ? (
+        <>
+          <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginBottom: 10 }}>My salary</Text>
+          <SalaryAccount d={d} driver={me} />
+        </>
+      ) : null}
 
       <ListCard title="My documents">
         {myDocs.length ? myDocs.map((x) => <DocRow key={x.id} d={x} />) : <Empty text="Your admin has not added documents yet" icon="document-outline" />}

@@ -64,7 +64,7 @@ export default function CarDetails() {
   }
 
   const print = () => {
-    const f = { carId: car.id, parts: ALL_PARTS, allStatuses: true };
+    const f = { carId: car.id, parts: ALL_PARTS.filter((x) => x !== 'salary'), allStatuses: true };
     printReport(reportSpec(d, f, runReport(d, f), `Car report · ${car.plate_no}`));
   };
 

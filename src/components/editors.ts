@@ -1,4 +1,4 @@
-import { confirm, removeRow, saveRow, saveUser, type FleetData, type Table } from '@/lib/data';
+import { confirm, notify, removeRow, saveRow, saveUser, type FleetData, type Table } from '@/lib/data';
 import {
   assignFields,
   carFields,
@@ -8,10 +8,12 @@ import {
   expenseFields,
   incomeFields,
   newUserFields,
+  payFields,
   profileFields,
 } from '@/lib/forms';
 import { today } from '@/lib/format';
-import type { Assignment, Car, CarDocument, Expense, Income, Profile } from '@/lib/types';
+import { monthLabel, monthLastDay, PAY_LABEL, recentMonths } from '@/lib/payroll';
+import type { Assignment, Car, CarDocument, Expense, Income, PayEntry, PayType, Profile } from '@/lib/types';
 
 import type { FormConfig } from './FormSheet';
 
@@ -129,4 +131,37 @@ export function resetPassword(open: Open, p: Profile) {
 export async function deleteRow(table: Table, id: string, what: string, reload: Reload) {
   if (!(await confirm(`Delete ${what}?`, 'This cannot be undone.'))) return;
   if (await removeRow(table, id)) await reload();
+}
+
+/** Add or edit a salary-account entry (salary, advance, bonus, deduction, payment, refund). */
+export function editPay(
+  open: Open,
+  reload: Reload,
+  d: FleetData,
+  driver: Profile,
+  type: PayType,
+  entry?: PayEntry,
+  suggested?: number,
+) {
+  const months = recentMonths(14).map((m) => ({ value: m, label: monthLabel(m) }));
+  const thisMonth = months[0].value;
+  const taken = new Set(d.payroll.filter((p) => p.driver_id === driver.id && p.type === 'salary' && p.id !== entry?.id).map((p) => p.month));
+  const freeMonth = months.find((m) => !taken.has(m.value))?.value ?? thisMonth;
+  const base =
+    type === 'salary'
+      ? { month: freeMonth, amount: driver.monthly_salary ?? undefined, entry_date: monthLastDay(freeMonth) > today() ? today() : monthLastDay(freeMonth) }
+      : { amount: suggested && suggested > 0 ? suggested : undefined, entry_date: today(), method: type === 'advance' || type === 'payment' ? 'cash' : undefined };
+  open({
+    title: `${entry ? 'Edit' : 'Add'} ${PAY_LABEL[type].toLowerCase()} · ${driver.full_name || driver.username}`,
+    fields: payFields(type, months),
+    initial: entry ?? base,
+    saveText: entry ? 'Save' : 'Add',
+    onSubmit: async (v) => {
+      if (type === 'salary' && taken.has(v.month)) {
+        notify('Already added', `Salary for ${monthLabel(v.month)} is already in ${driver.full_name || driver.username}'s account.`);
+        return false;
+      }
+      return saver('payroll', reload, entry?.id)({ ...v, type, driver_id: driver.id });
+    },
+  });
 }

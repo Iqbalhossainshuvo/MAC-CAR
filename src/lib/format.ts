@@ -85,8 +85,20 @@ export function personName(p: Pick<Profile, 'full_name' | 'email' | 'username'> 
   return p.full_name || p.username || p.email || '-';
 }
 
+/** Money as whole halalas (integer) so totals never drift (0.1 + 0.2 = 0.3, not 0.30000000000000004). */
+export function toCents(v: number | string | null | undefined): number {
+  const n = Number(v ?? 0);
+  if (!isFinite(n)) return 0;
+  const str = String(Math.abs(n));
+  const c = str.includes('e') ? Math.round(Math.abs(n) * 100) : Math.round(Number(str + 'e2'));
+  return n < 0 ? -c : c;
+}
+
+export const fromCents = (c: number) => c / 100;
+
+/** Exact sum of money values (2-decimal rounding per value, integer math). */
 export function sum<T>(rows: T[], pick: (r: T) => number | null | undefined): number {
-  return rows.reduce((acc, r) => acc + Number(pick(r) ?? 0), 0);
+  return fromCents(rows.reduce((acc, r) => acc + toCents(pick(r)), 0));
 }
 
 export function inRange(date: string, from?: string, to?: string): boolean {

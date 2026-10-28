@@ -1,5 +1,5 @@
 import type { FleetData } from './data';
-import { activeOn, carName, daysUntil, inRange, monthEnd, monthStart, personName, sum, today, toISODate } from './format';
+import { activeOn, carName, daysUntil, fromCents, inRange, monthEnd, monthStart, personName, sum, toCents, today, toISODate } from './format';
 import type { Assignment, Expense, ExpenseCategory, Income } from './types';
 
 /** Only approved expenses count as real cost. */
@@ -44,7 +44,7 @@ export function money(incomes: Income[], expenses: Expense[], from?: string, to?
   return {
     income,
     expense,
-    profit: income - expense,
+    profit: fromCents(toCents(income) - toCents(expense)),
     fines: sum(
       exp.filter((e) => e.category === 'fine'),
       (e) => e.amount,

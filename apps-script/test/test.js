@@ -64,4 +64,29 @@ r=call({action:'save',token:A2,table:'car_documents',row:{doc_type:'Other'}});ok
 r=call({action:'removeFile',token:A2,id:doc.id});ok(r.ok&&!r.data.file_id,'remove file');
 }
 
+// --- salary account (payroll)
+{
+const A3=call({action:'login',username:'admin',password:'123456'}).data.token;
+const rah=call({action:'saveUser',token:A3,user:{username:'rahim',full_name:'Rahim Mia',password:'driver1',role:'driver'}}).data;
+call({action:'save',token:A3,table:'assignments',row:{car_id:car,driver_id:rah.id,start_date:'2020-01-01'}});
+const cars0=car;
+r=call({action:'saveUser',token:A3,user:{id:rah.id,monthly_salary:'2500.555'}});ok(r.ok&&r.data.monthly_salary===2500.56,'monthly salary saved and rounded');
+const P=(row)=>call({action:'save',token:A3,table:'payroll',row:Object.assign({driver_id:rah.id,entry_date:'2026-10-31'},row)});
+r=P({type:'salary',amount:2500,month:'2026-10'});ok(r.ok&&r.data.driver_name==='Rahim Mia','salary entry');
+r=P({type:'salary',amount:2500,month:'2026-10'});ok(!r.ok&&/already added/.test(r.error),'same month salary blocked');
+r=P({type:'salary',amount:2500});ok(!r.ok&&/month/.test(r.error),'salary needs month');
+r=P({type:'advance',amount:0});ok(!r.ok,'zero amount blocked');
+r=P({type:'advance',amount:-50});ok(!r.ok,'negative amount blocked');
+r=P({type:'advance',amount:700,method:'cash'});ok(r.ok,'advance entry');
+r=P({type:'bonus',amount:'100.1'});ok(r.ok&&r.data.amount===100.1,'bonus entry');
+r=P({type:'loan',amount:5});ok(!r.ok,'unknown type blocked');
+r=call({action:'save',token:A3,table:'payroll',row:{driver_id:call({action:'data',token:A3}).data.profiles.find(p=>p.role==='admin').id,type:'bonus',amount:1,entry_date:'2026-10-01'}});ok(!r.ok,'payroll only for drivers');
+const R=call({action:'login',username:'rahim',password:'driver1'}).data.token;
+r=call({action:'data',token:R});ok(r.ok&&r.data.payroll.length===3&&r.data.payroll.every(x=>x.driver_id===rah.id),'driver sees own salary account');
+r=call({action:'save',token:R,table:'payroll',row:{driver_id:rah.id,type:'bonus',amount:9999,entry_date:'2026-10-01'}});ok(!r.ok,'driver cannot add salary entries');
+r=call({action:'save',token:R,table:'expenses',row:{car_id:cars0,category:'fine',amount:150,expense_date:'2026-10-05',paid_by:'company',waived:true}});ok(r.ok&&r.data.waived!==true,'driver cannot waive own fine');
+r=call({action:'save',token:A3,table:'expenses',row:{id:r.data.id,waived:true,status:'approved'}});ok(r.ok&&r.data.waived===true,'admin waives fine');
+r=call({action:'saveUser',token:A3,user:{id:rah.id,full_name:'Rahim Uddin Mia'}});ok(sheets['Payroll'].data.slice(1).every(x=>x[2]==='Rahim Uddin Mia'),'payroll names follow renames');
+}
+
 console.log(fails?fails+' FAILED':'ALL PASSED');

@@ -56,7 +56,7 @@ export default function DriverLayout() {
         tabBarActiveTintColor: C.primary,
         tabBarInactiveTintColor: '#9A97B8',
         tabBarLabelStyle: { fontFamily: F.semi, fontSize: 11, marginBottom: 6 },
-        sceneStyle: { backgroundColor: 'transparent' },
+        sceneStyle: { backgroundColor: C.bg },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline', 'home') }} />
