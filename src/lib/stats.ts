@@ -76,9 +76,9 @@ export function expenseByCategory(expenses: Expense[], from?: string, to?: strin
   const map = new Map<ExpenseCategory, number>();
   for (const e of expenses) {
     if (!counted(e) || !inRange(e.expense_date, from, to)) continue;
-    map.set(e.category, (map.get(e.category) ?? 0) + Number(e.amount));
+    map.set(e.category, (map.get(e.category) ?? 0) + toCents(e.amount)); // exact: whole halalas
   }
-  return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  return [...map.entries()].map(([k, c]) => [k, fromCents(c)] as [ExpenseCategory, number]).sort((a, b) => b[1] - a[1]);
 }
 
 export function lastMonths(d: FleetData, n = 6) {

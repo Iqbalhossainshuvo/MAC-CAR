@@ -616,6 +616,9 @@ function clean_(table, row) {
 }
 
 function checkRequired_(table, row) {
+  if (table === 'daily_logs' && row.start_odometer != null && row.end_odometer != null && Number(row.end_odometer) < Number(row.start_odometer)) {
+    throw new Error('End odometer cannot be less than start odometer');
+  }
   if (table === 'car_documents' && !row.car_id && !row.driver_id) throw new Error('Choose a car or a driver for this document');
   (REQUIRED[table] || []).forEach(function (c) {
     if (row[c] === null || row[c] === undefined || row[c] === '') throw new Error(c.replace(/_/g, ' ') + ' is required');

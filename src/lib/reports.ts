@@ -78,7 +78,7 @@ export function runReport(d: FleetData, f: ReportFilter): ReportResult {
       expense,
       profit: fromCents(toCents(income) - toCents(expense)),
       fines: sum(fines.filter(counted), (e) => e.amount),
-      km: sum(logs, (l) => (l.end_odometer != null && l.start_odometer != null ? l.end_odometer - l.start_odometer : 0)),
+      km: sum(logs, (l) => (l.end_odometer != null && l.start_odometer != null ? Math.max(0, l.end_odometer - l.start_odometer) : 0)),
       cash: sum(logs, (l) => l.cash_collected),
     },
   };

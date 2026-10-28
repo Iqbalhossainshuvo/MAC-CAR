@@ -56,7 +56,9 @@ export default function DriverHome() {
     };
   }, [d, carById, user?.id]);
 
-  const dues = me ? salaryDues(driverAccount(d, me.id)) : null;
+  const acc = me ? driverAccount(d, me.id) : null;
+  const dues = acc ? salaryDues(acc) : null;
+  const thisM = acc?.months.find((x) => x.month === today().slice(0, 7));
   const parts = salaryParts(me);
 
   if (firstLoad) return <Loading />;
@@ -146,6 +148,13 @@ export default function DriverHome() {
                   <Text style={{ color: dues.owes ? C.red : C.green, fontFamily: F.display, fontSize: 24, marginTop: 2 }}>
                     {money(dues.owes || dues.payable)}
                   </Text>
+                  {thisM && (thisM.reimbursed || thisM.fines) ? (
+                    <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 11, marginTop: 2 }}>
+                      This month:{thisM.reimbursed ? ` car expenses you paid +${money(thisM.reimbursed)}` : ''}
+                      {thisM.reimbursed && thisM.fines ? ' ·' : ''}
+                      {thisM.fines ? ` fines −${money(thisM.fines)}` : ''}
+                    </Text>
+                  ) : null}
                   {dues.carried.length ? (
                     <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 11, marginTop: 2 }}>{carriedNote(dues, money)}</Text>
                   ) : null}

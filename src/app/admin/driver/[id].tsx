@@ -61,7 +61,7 @@ export default function DriverDetails() {
       spent: sum(ok.filter((e) => e.category !== 'fine'), (e) => e.amount),
       fineTotal: sum(ok.filter((e) => e.category === 'fine'), (e) => e.amount),
       owed: sum(ok.filter((e) => e.paid_by === 'driver'), (e) => e.amount),
-      km: sum(logs, (l) => (l.end_odometer != null && l.start_odometer != null ? l.end_odometer - l.start_odometer : 0)),
+      km: sum(logs, (l) => (l.end_odometer != null && l.start_odometer != null ? Math.max(0, l.end_odometer - l.start_odometer) : 0)),
       cash: sum(logs, (l) => l.cash_collected),
     };
   }, [d, p]);
@@ -241,7 +241,7 @@ export default function DriverDetails() {
                 icon="add"
                 small
                 variant="danger"
-                onPress={() => editExpense(form.open, reload, d, { driver_id: p.id, car_id: v.now?.car_id, category: 'fine', paid_by: 'driver' })}
+                onPress={() => editExpense(form.open, reload, d, { driver_id: p.id, car_id: v.now?.car_id, category: 'fine', paid_by: 'company' })}
               />
             }
           >

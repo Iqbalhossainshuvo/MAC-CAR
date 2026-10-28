@@ -91,6 +91,7 @@ export const expenseFields = (cars: Car[], people: Profile[]): FieldDef[] => [
       { value: 'driver', label: 'Driver (to reimburse)' },
     ],
     required: true,
+    hint: 'Driver = added to his salary. For a fine choose Company (company pays it) — it is taken from the driver\'s salary unless you waive it.',
   },
   { key: 'odometer', label: 'Odometer (km)', type: 'number' },
   { key: 'reference', label: 'Invoice / violation number' },

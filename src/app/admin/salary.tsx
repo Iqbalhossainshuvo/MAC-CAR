@@ -214,7 +214,7 @@ export default function Salary() {
                     Monthly {p.monthly_salary ? money(p.monthly_salary) : 'not set'}
                     {salaryPartsText(p) ? ` (${salaryPartsText(p)})` : ''}
                     {m
-                      ? ` · Salary ${money(m.salary)} · Advance ${money(m.advances)} · Fines ${money(m.fines)} · Paid ${money(m.paid)}`
+                      ? ` · Salary ${money(m.salary)}${m.reimbursed ? ` · Own expenses +${money(m.reimbursed)}` : ''} · Advance ${money(m.advances)} · Fines −${money(m.fines)} · Paid ${money(m.paid)}`
                       : ` · No entries in ${period}`}
                   </Text>
                   <Row style={{ gap: 6, flexWrap: 'wrap' }}>

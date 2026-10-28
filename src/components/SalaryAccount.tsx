@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import { deleteRow, editExpense, editPay } from '@/components/editors';
 import type { FormConfig } from '@/components/FormSheet';
 import { saveRow, type FleetData } from '@/lib/data';
+import { PayBreakdown } from './PayBreakdown';
 import { usePerm } from '@/lib/perms';
 import { fmtDate, money, personName, today } from '@/lib/format';
 import { carriedNote, driverAccount, LINE_LABEL, monthLabel, salaryDues, salaryParts, type AccountLine, type LineKind } from '@/lib/payroll';
@@ -120,6 +121,8 @@ export function SalaryAccount({
           </View>
         </ListCard>
       ) : null}
+
+      <PayBreakdown d={d} driver={driver} acc={acc} admin={admin} canWaive={canWaive} />
 
       {dues.byMonth.length > 1 || dues.carried.length ? (
         <ListCard title="Unpaid by month">
