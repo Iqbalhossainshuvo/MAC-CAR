@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { NoAccess } from '@/components/NoAccess';
 import { useFormSheet } from '@/components/FormSheet';
 import {
   Avatar,
@@ -24,10 +25,12 @@ import {
 import { confirm, notify, saveRow, useFleet } from '@/lib/data';
 import { fromCents, money, personName, toCents, today } from '@/lib/format';
 import { driverAccount, monthLabel, monthLastDay, recentMonths } from '@/lib/payroll';
+import { usePerm } from '@/lib/perms';
 
 /** All drivers' salary accounts on one page, and adding a month's salary for everyone. */
 export default function Salary() {
   const { data: d, loading, error, reload, firstLoad } = useFleet();
+  const perm = usePerm();
   const form = useFormSheet();
   const months = recentMonths(6);
   const [month, setMonth] = useState(months[0]);
@@ -44,6 +47,7 @@ export default function Salary() {
       .sort((a, b) => Number(b.p.active) - Number(a.p.active) || personName(a.p).localeCompare(personName(b.p)));
   }, [d, month]);
 
+  if (!perm.can('salary')) return <NoAccess what="salaries" />;
   if (firstLoad) return <Loading />;
 
   const totals = {
@@ -96,7 +100,7 @@ export default function Salary() {
             : 'Every active driver with a monthly salary has this month added.'}
           {noSalarySet.length ? ` ${noSalarySet.length} driver(s) have no monthly salary set — open them to add it by hand.` : ''}
         </Text>
-        <Button title={`Add salary for ${missing.length} driver(s)`} icon="add-circle-outline" style={{ marginTop: 12 }} disabled={!missing.length} onPress={addAll} />
+        {perm.can('salary', 'edit') ? <Button title={`Add salary for ${missing.length} driver(s)`} icon="add-circle-outline" style={{ marginTop: 12 }} disabled={!missing.length} onPress={addAll} /> : null}
       </Card>
 
       <ListCard title="Drivers">

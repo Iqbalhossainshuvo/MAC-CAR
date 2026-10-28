@@ -1,4 +1,5 @@
-export type Role = 'admin' | 'driver';
+/** manager = admin assistant with the permissions the admin ticked */
+export type Role = 'admin' | 'manager' | 'driver';
 
 /** "Deleted" rows are archived: hidden in the app, kept in the sheet, restorable. */
 export interface Archivable {
@@ -33,6 +34,8 @@ export interface Profile {
   has_password?: boolean;
   /** driver's fixed monthly salary (SAR) */
   monthly_salary?: number | null;
+  /** manager only, e.g. "cars:edit,expenses:view,approve" */
+  permissions?: string | null;
 }
 
 export type CarStatus = 'active' | 'maintenance' | 'inactive' | 'sold';

@@ -5,7 +5,9 @@ import { Button, C, Card, Chips, Empty, F, IconTile, ListCard, ListItem, Loading
 import { restoreRow, useFleet, type FleetData, type Table } from '@/lib/data';
 import { carName, fmtDate, money, personName } from '@/lib/format';
 import { PAY_LABEL } from '@/lib/payroll';
+import { usePerm, type Area } from '@/lib/perms';
 import { CATEGORY_LABEL } from '@/lib/types';
+import { NoAccess } from '@/components/NoAccess';
 
 type Kind = 'all' | Table;
 
@@ -17,6 +19,13 @@ interface Item {
   sub: string;
   at: string;
   by: string;
+  carDoc?: boolean;
+}
+
+/** permission area of an archived row (same rule as the server) */
+function areaOf(i: Item): Area {
+  if (i.table === 'car_documents') return i.carDoc ? 'cars' : 'drivers';
+  return ({ cars: 'cars', assignments: 'cars', daily_logs: 'drivers', incomes: 'income', expenses: 'expenses', payroll: 'salary' } as const)[i.table];
 }
 
 const KIND_LABEL: Record<Kind, string> = {
@@ -34,10 +43,12 @@ const KIND_LABEL: Record<Kind, string> = {
 export default function Archive() {
   const { all, carById, personById, firstLoad } = useFleet();
   const [kind, setKind] = useState<Kind>('all');
+  const perm = usePerm();
 
-  const items = useMemo(() => collect(all, carById, personById), [all, carById, personById]);
+  const items = useMemo(() => collect(all, carById, personById).filter((i) => perm.can(areaOf(i))), [all, carById, personById, perm]);
   const shown = kind === 'all' ? items : items.filter((i) => i.table === kind);
 
+  if (!perm.can('archive')) return <NoAccess what="the archive" />;
   if (firstLoad) return <Loading />;
 
   return (
@@ -74,7 +85,11 @@ export default function Archive() {
                   </Text>
                 </View>
               }
-              right={<Button small variant="ghost" icon="arrow-undo-outline" title="Restore" onPress={() => restoreRow(i.table, i.id)} />}
+              right={
+                perm.can(areaOf(i), 'edit') ? (
+                  <Button small variant="ghost" icon="arrow-undo-outline" title="Restore" onPress={() => restoreRow(i.table, i.id)} />
+                ) : undefined
+              }
             />
           ))
         ) : (
@@ -90,7 +105,7 @@ function collect(d: FleetData, cars: Map<string, any>, people: Map<string, any>)
   const car = (id?: string | null) => (id ? carName(cars.get(id)) : '');
   const out: Item[] = [];
   const push = (table: Table, r: any, icon: IconName, title: string, sub: string) => {
-    if (r.archived) out.push({ table, id: r.id, icon, title, sub, at: r.archived_at ?? '', by: by(r.archived_by) });
+    if (r.archived) out.push({ table, id: r.id, icon, title, sub, at: r.archived_at ?? '', by: by(r.archived_by), carDoc: !!r.car_id });
   };
   for (const e of d.expenses)
     push('expenses', e, 'trending-down', `${CATEGORY_LABEL[e.category]} · ${money(e.amount)}`, [fmtDate(e.expense_date), car(e.car_id), by(e.driver_id), e.description].filter(Boolean).join(' · '));

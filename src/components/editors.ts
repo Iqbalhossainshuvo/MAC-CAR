@@ -1,4 +1,4 @@
-import { confirm, notify, removeRow, saveRow, saveUser, type FleetData, type Table } from '@/lib/data';
+import { confirm, currentMe, notify, removeRow, saveRow, saveUser, type FleetData, type Table } from '@/lib/data';
 import {
   assignFields,
   carFields,
@@ -12,10 +12,21 @@ import {
   profileFields,
 } from '@/lib/forms';
 import { today } from '@/lib/format';
+import { can } from '@/lib/perms';
 import { monthLabel, monthLastDay, PAY_LABEL, recentMonths } from '@/lib/payroll';
 import type { Assignment, Car, CarDocument, Expense, Income, PayEntry, PayType, Profile } from '@/lib/types';
 
-import type { FormConfig } from './FormSheet';
+import type { FieldDef, FormConfig } from './FormSheet';
+
+/** A manager (not admin) only manages driver logins: no role / permissions, salary only with salary:edit. */
+function userFieldsForMe(fields: FieldDef[]): FieldDef[] {
+  const me = currentMe();
+  if (!me || me.role === 'admin') return fields;
+  return fields
+    .filter((f) => f.key !== 'role' && f.key !== 'permissions')
+    .filter((f) => f.key !== 'monthly_salary' || can(me, 'salary', 'edit'))
+    .map((f) => (f.key === 'monthly_salary' ? { ...f, showIf: undefined } : f));
+}
 
 type Open = (c: FormConfig | null) => void;
 type Reload = () => void | Promise<void>;
@@ -73,16 +84,17 @@ export function editIncome(open: Open, reload: Reload, d: FleetData, i?: Partial
 export function editExpense(open: Open, reload: Reload, d: FleetData, e?: Partial<Expense>) {
   open({
     title: e?.id ? 'Edit expense' : 'Add expense',
-    fields: expenseFields(d.cars, d.profiles),
-    initial: { expense_date: today(), paid_by: 'company', status: 'approved', category: 'fuel', ...e },
+    // a manager who cannot approve does not get the Status field (new entries wait for approval)
+    fields: can(currentMe(), 'approve') ? expenseFields(d.cars, d.profiles) : expenseFields(d.cars, d.profiles).filter((f) => f.key !== 'status'),
+    initial: { expense_date: today(), paid_by: 'company', status: can(currentMe(), 'approve') ? 'approved' : 'pending', category: 'fuel', ...e },
     onSubmit: saver('expenses', reload, e?.id),
   });
 }
 
-export function newUser(open: Open, reload: Reload, role: 'driver' | 'admin' = 'driver') {
+export function newUser(open: Open, reload: Reload, role: 'driver' | 'manager' | 'admin' = 'driver', title?: string) {
   open({
-    title: role === 'driver' ? 'Add driver (login)' : 'Add user',
-    fields: newUserFields,
+    title: title ?? (role === 'driver' ? 'Add driver (login)' : 'Add user'),
+    fields: userFieldsForMe(newUserFields),
     initial: { role },
     saveText: 'Create',
     onSubmit: async (v) => {
@@ -96,7 +108,7 @@ export function newUser(open: Open, reload: Reload, role: 'driver' | 'admin' = '
 export function editUser(open: Open, reload: Reload, p: Profile) {
   open({
     title: `Edit ${p.full_name || p.username}`,
-    fields: editUserFields,
+    fields: userFieldsForMe(editUserFields),
     initial: p,
     onSubmit: async (v) => {
       const u = await saveUser({ ...v, id: p.id });
@@ -109,7 +121,7 @@ export function editUser(open: Open, reload: Reload, p: Profile) {
 export function editDriverProfile(open: Open, reload: Reload, p: Profile) {
   open({
     title: 'Driver details',
-    fields: profileFields,
+    fields: userFieldsForMe(profileFields),
     initial: p,
     onSubmit: async (v) => {
       const u = await saveUser({ ...v, id: p.id });

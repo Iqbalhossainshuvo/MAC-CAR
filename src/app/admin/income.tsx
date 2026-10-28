@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { deleteRow, editIncome } from '@/components/editors';
+import { NoAccess } from '@/components/NoAccess';
 import { useFormSheet } from '@/components/FormSheet';
 import { IncomeRow } from '@/components/rows';
 import {
@@ -27,9 +28,11 @@ import { useFleet } from '@/lib/data';
 import { carName, inRange, money } from '@/lib/format';
 import { carOptions } from '@/lib/forms';
 import { carMoney, money as sumMoney, PERIOD_LABEL, periodRange, type Period } from '@/lib/stats';
+import { usePerm } from '@/lib/perms';
 
 export default function IncomeScreen() {
   const { data: d, loading, error, reload, carById, firstLoad } = useFleet();
+  const perm = usePerm();
   const [period, setPeriod] = useState<Period>('month');
   const [carId, setCarId] = useState('');
   const form = useFormSheet();
@@ -51,6 +54,7 @@ export default function IncomeScreen() {
     return { incomes, total, perCar };
   }, [d, carId, from, to]);
 
+  if (!perm.can('income')) return <NoAccess what="income" />;
   if (firstLoad) return <Loading />;
 
   return (
@@ -106,8 +110,8 @@ export default function IncomeScreen() {
                     key={i.id}
                     i={i}
                     cars={carById}
-                    onEdit={() => editIncome(form.open, reload, d, i)}
-                    onDelete={() => deleteRow('incomes', i.id, 'this income', reload)}
+                    onEdit={perm.can('income', 'edit') ? () => editIncome(form.open, reload, d, i) : undefined}
+                    onDelete={perm.can('income', 'edit') ? () => deleteRow('incomes', i.id, 'this income', reload) : undefined}
                   />
                 ))
               ) : (
@@ -120,7 +124,7 @@ export default function IncomeScreen() {
           <Text style={{ color: C.muted, fontSize: 12 }}>Only approved expenses are counted.</Text>
         </Row>
       </Screen>
-      <Fab label="Add income" onPress={() => editIncome(form.open, reload, d, carId ? { car_id: carId } : undefined)} />
+      {perm.can('income', 'edit') ? <Fab label="Add income" onPress={() => editIncome(form.open, reload, d, carId ? { car_id: carId } : undefined)} /> : null}
       {form.element}
     </View>
   );

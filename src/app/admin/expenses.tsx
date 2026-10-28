@@ -10,11 +10,14 @@ import { inRange, money, sum } from '@/lib/format';
 import { carOptions, driverOptions } from '@/lib/forms';
 import { PERIOD_LABEL, periodRange, type Period } from '@/lib/stats';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/types';
+import { expenseRowProps, usePerm } from '@/lib/perms';
+import { NoAccess } from '@/components/NoAccess';
 
 type Status = 'all' | 'pending' | 'approved' | 'rejected';
 
 export default function Expenses() {
   const { data: d, loading, error, reload, carById, personById, firstLoad } = useFleet();
+  const perm = usePerm();
   const [period, setPeriod] = useState<Period>('month');
   const [status, setStatus] = useState<Status>('all');
   const [carId, setCarId] = useState('');
@@ -37,6 +40,7 @@ export default function Expenses() {
   );
   const pendingAll = d.expenses.filter((e) => e.status === 'pending').length;
 
+  if (!perm.can('expenses') && !perm.can('approve')) return <NoAccess what="expenses" />;
   if (firstLoad) return <Loading />;
 
   const decide = async (id: string, s: 'approved' | 'rejected') => {
@@ -96,15 +100,17 @@ export default function Expenses() {
         <ListCard title={`Expenses · ${list.length}`}>
           {list.length ? (
             list.map((e) => (
-              <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
+              <ExpenseRow
                 key={e.id}
                 e={e}
                 cars={carById}
                 people={personById}
-                onApprove={e.status === 'pending' ? () => decide(e.id, 'approved') : undefined}
-                onReject={e.status === 'pending' ? () => decide(e.id, 'rejected') : undefined}
-                onEdit={() => editExpense(form.open, reload, d, e)}
-                onDelete={() => deleteRow('expenses', e.id, 'this expense', reload)}
+                {...expenseRowProps(perm, e, {
+                  approve: e.status === 'pending' ? () => decide(e.id, 'approved') : undefined,
+                  reject: e.status === 'pending' ? () => decide(e.id, 'rejected') : undefined,
+                  edit: () => editExpense(form.open, reload, d, e),
+                  del: () => deleteRow('expenses', e.id, 'this expense', reload),
+                })}
               />
             ))
           ) : (
@@ -112,10 +118,12 @@ export default function Expenses() {
           )}
         </ListCard>
       </Screen>
-      <Fab
-        label="Add expense"
-        onPress={() => editExpense(form.open, reload, d, { ...(carId ? { car_id: carId } : {}), ...(driverId ? { driver_id: driverId } : {}) })}
-      />
+      {perm.can('expenses', 'edit') ? (
+        <Fab
+          label="Add expense"
+          onPress={() => editExpense(form.open, reload, d, { ...(carId ? { car_id: carId } : {}), ...(driverId ? { driver_id: driverId } : {}) })}
+        />
+      ) : null}
       {form.element}
     </View>
   );

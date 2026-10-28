@@ -33,6 +33,7 @@ import { saveRow, useFleet } from '@/lib/data';
 import { carName, expiryLevel, expiryText, fmtDate, fromCents, money, personName, toCents, today } from '@/lib/format';
 import { driverCost } from '@/lib/payroll';
 import { useAuth } from '@/lib/auth';
+import { usePerm } from '@/lib/perms';
 import { carMoney, currentAssignment, expenseByCategory, expiryAlerts, lastMonths, money as sumMoney, PERIOD_LABEL, periodRange, type Period } from '@/lib/stats';
 import { CATEGORY_LABEL } from '@/lib/types';
 
@@ -41,6 +42,9 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('month');
   const form = useFormSheet();
   const { user } = useAuth();
+  const perm = usePerm();
+  const money$ = perm.seeMoney; // profit & totals: admin or managers with "Reports & profit"
+  const canApprove = perm.can('approve');
   const navigation = useNavigation();
   const wide = useWindowDimensions().width >= 1024;
   const { from, to } = periodRange(period);
@@ -97,8 +101,8 @@ export default function Dashboard() {
         name={personName(user)}
         subtitle="Here is how your fleet is doing."
         onMenu={wide ? undefined : () => (navigation as any).openDrawer?.()}
-        onBell={() => router.push(stats.pending.length ? '/admin/expenses' : '/admin/cars')}
-        bellDot={stats.pending.length + stats.alerts.length > 0}
+        onBell={() => router.push(stats.pending.length && canApprove ? '/admin/expenses' : perm.can('cars') ? '/admin/cars' : '/admin')}
+        bellDot={(canApprove ? stats.pending.length : 0) + stats.alerts.length > 0}
       />
       {error ? <ErrorBox message={error} onRetry={reload} /> : null}
 
@@ -108,13 +112,15 @@ export default function Dashboard() {
         <StatCard
           compact
           label="Alerts"
-          value={String(stats.alerts.length + stats.pending.length)}
+          value={String(stats.alerts.length + (canApprove ? stats.pending.length : 0))}
           icon="notifications"
-          tone={stats.alerts.length || stats.pending.length ? 'amber' : 'green'}
-          sub={`${stats.alerts.length} expiring · ${stats.pending.length} to approve`}
+          tone={stats.alerts.length || (canApprove && stats.pending.length) ? 'amber' : 'green'}
+          sub={canApprove ? `${stats.alerts.length} expiring · ${stats.pending.length} to approve` : `${stats.alerts.length} expiring`}
         />
       </StatGrid>
 
+      {money$ ? (
+        <>
       <Chips options={['month', 'last', 'year', 'all'] as Period[]} value={period} onChange={setPeriod} labels={PERIOD_LABEL} />
       <View style={{ height: 12 }} />
 
@@ -137,7 +143,7 @@ export default function Dashboard() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Open income"
-            onPress={() => router.push('/admin/income')}
+            onPress={() => router.push(perm.can('income') ? '/admin/income' : '/admin/reports')}
             style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}
           >
             <Ionicons name="chevron-forward" size={22} color={C.primary} />
@@ -153,6 +159,8 @@ export default function Dashboard() {
           <Text style={{ color: 'rgba(255,255,255,0.9)', fontFamily: F.semi, fontSize: 12, marginTop: 10 }}>{money(stats.m.due)} not yet paid by customers</Text>
         ) : null}
       </HeroCard>
+        </>
+      ) : null}
 
       <Card>
         <H2>Fleet health</H2>
@@ -172,6 +180,8 @@ export default function Dashboard() {
 
       <Columns>
         <Col>
+          {money$ ? (
+          <>
           <ListCard title="Profit by car (before driver salaries)">
             <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
               {stats.perCar.length ? (
@@ -206,6 +216,8 @@ export default function Dashboard() {
               ))}
             </View>
           </ListCard>
+          </>
+          ) : null}
         </Col>
 
         <Col>
@@ -225,10 +237,11 @@ export default function Dashboard() {
             )}
           </ListCard>
 
+          {canApprove ? (
           <ListCard title="Driver entries to approve" accent={C.magenta}>
             {stats.pending.length ? (
               stats.pending.slice(0, 10).map((e) => (
-                <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
+                <ExpenseRow receipt={{ canUpload: perm.can('expenses', 'edit'), canRemove: perm.can('expenses', 'edit') }}
                   key={e.id}
                   e={e}
                   cars={carById}
@@ -241,6 +254,7 @@ export default function Dashboard() {
               <Empty text="Nothing waiting for approval" icon="checkmark-done-outline" />
             )}
           </ListCard>
+          ) : null}
 
           <ListCard title="Who is driving now">
             {stats.driving.length ? (
@@ -250,7 +264,7 @@ export default function Dashboard() {
                   left={<IconTile icon="person" color={C.green} />}
                   title={personName(personById.get(a.driver_id))}
                   subtitle={`${carName(carById.get(a.car_id))} · since ${fmtDate(a.start_date)}`}
-                  onPress={() => router.push(`/admin/driver/${a.driver_id}`)}
+                  onPress={perm.can('drivers') || perm.can('salary') ? () => router.push(`/admin/driver/${a.driver_id}`) : undefined}
                 />
               ))
             ) : (
@@ -258,6 +272,7 @@ export default function Dashboard() {
             )}
           </ListCard>
 
+          {perm.seeExpenses ? (
           <ListCard title="Expenses by category">
             <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
               {stats.cats.length ? (
@@ -269,6 +284,7 @@ export default function Dashboard() {
               )}
             </View>
           </ListCard>
+          ) : null}
         </Col>
       </Columns>
 

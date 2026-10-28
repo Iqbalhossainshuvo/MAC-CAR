@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import { deleteRow, editExpense, editPay } from '@/components/editors';
 import type { FormConfig } from '@/components/FormSheet';
 import { saveRow, type FleetData } from '@/lib/data';
+import { usePerm } from '@/lib/perms';
 import { fmtDate, money, personName, today } from '@/lib/format';
 import { driverAccount, LINE_LABEL, monthLabel, type AccountLine, type LineKind } from '@/lib/payroll';
 import type { PayType, Profile } from '@/lib/types';
@@ -56,6 +57,11 @@ export function SalaryAccount({
   reload?: () => void | Promise<void>;
 }) {
   const acc = useMemo(() => driverAccount(d, driver.id), [d, driver.id]);
+  const perm = usePerm();
+  // what the admin / manager may do here
+  const canPay = !!admin && perm.can('salary', 'edit');
+  const canFine = !!admin && perm.can('expenses', 'edit');
+  const canWaive = !!admin && perm.can('approve');
   const [showAll, setShowAll] = useState(false);
   const name = personName(driver).split(' ')[0];
   const thisMonth = today().slice(0, 7);
@@ -91,9 +97,9 @@ export function SalaryAccount({
         ) : null}
       </HeroCard>
 
-      {admin && open && reload ? (
+      {(canPay || canFine) && open && reload ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          {(
+          {canPay && (
             [
               ['salary', 'Add salary', 'wallet-outline'],
               ['advance', 'Advance', 'cash-outline'],
@@ -113,7 +119,7 @@ export function SalaryAccount({
               onPress={() => add(t, t === 'payment' ? acc.balance : t === 'refund' ? -acc.balance : undefined)}
             />
           ))}
-          <Button
+          {canFine ? <Button
             small
             variant="light"
             icon="alert-circle-outline"
@@ -123,7 +129,7 @@ export function SalaryAccount({
               const now = d.assignments.find((a) => a.driver_id === driver.id && (!a.end_date || a.end_date >= today()));
               editExpense(open, reload, d, { driver_id: driver.id, car_id: now?.car_id, category: 'fine', paid_by: 'company' });
             }}
-          />
+          /> : null}
         </View>
       ) : null}
 
@@ -179,15 +185,15 @@ export function SalaryAccount({
                     {[fmtDate(l.date), l.description].filter(Boolean).join(' · ')}
                   </Text>
                   {l.sign === 0 ? <Badge text="Waived — not taken from salary" tone="gray" /> : null}
-                  {admin && open && reload ? (
+                  {(canPay || canWaive) && open && reload ? (
                     <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-                      {l.entry ? (
+                      {l.entry && canPay ? (
                         <>
                           <IconBtn icon="create-outline" label="Edit entry" onPress={() => editPay(open, reload, d, driver, l.entry!.type, l.entry)} />
                           <IconBtn icon="trash-outline" color={C.red} label="Delete entry" onPress={() => deleteRow('payroll', l.entry!.id, 'this entry', reload)} />
                         </>
                       ) : null}
-                      {l.kind === 'fine' && l.expense ? (
+                      {l.kind === 'fine' && l.expense && canWaive ? (
                         <Pressable
                           onPress={() => saveRow('expenses', { id: l.expense!.id, waived: !l.expense!.waived })}
                           accessibilityRole="button"

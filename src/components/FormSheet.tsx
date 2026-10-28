@@ -1,12 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Text } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { fileSize, pickFile, takePhoto, type PickedFile } from '@/lib/files';
 import { isValidDate } from '@/lib/format';
+import { AREAS, FLAGS, parsePerms, permsText, type Level, type Perms } from '@/lib/perms';
 
-import { Button, C, DateInput, F, Field, IconBtn, Input, Row, Select, Sheet, hexA, type Option } from './ui';
+import { Button, C, Chips, DateInput, F, Field, IconBtn, Input, Row, Select, Sheet, hexA, type Option } from './ui';
 
-export type FieldType = 'text' | 'number' | 'date' | 'select' | 'multiline' | 'email' | 'password' | 'phone' | 'file';
+export type FieldType = 'text' | 'number' | 'date' | 'select' | 'multiline' | 'email' | 'password' | 'phone' | 'file' | 'perms';
 
 export interface FieldDef {
   key: string;
@@ -18,6 +20,8 @@ export interface FieldDef {
   hint?: string;
   /** Show "None" option in selects */
   allowEmpty?: boolean;
+  /** Only show (and check) this field when it returns true for the current form values */
+  showIf?: (values: Record<string, string>) => boolean;
 }
 
 type Values = Record<string, string>;
@@ -76,6 +80,7 @@ export function FormSheet({
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     for (const f of fields) {
+      if (f.showIf && !f.showIf(values)) continue;
       const v = (values[f.key] ?? '').trim();
       if (f.required && v === '') e[f.key] = 'Required';
       else if (v !== '' && f.type === 'number' && Number.isNaN(Number(v.replace(/,/g, '')))) e[f.key] = 'Enter a number';
@@ -102,9 +107,11 @@ export function FormSheet({
 
   return (
     <Sheet visible={visible} title={title} onClose={onClose} onSave={save} saving={saving} saveText={saveText}>
-      {fields.map((f) => (
+      {fields.filter((f) => !f.showIf || f.showIf(values)).map((f) => (
         <Field key={f.key} label={f.label + (f.required ? ' *' : '')} error={errors[f.key]}>
-          {f.type === 'file' ? (
+          {f.type === 'perms' ? (
+            <PermsField value={values[f.key] ?? ''} onChange={(v) => set(f.key, v)} />
+          ) : f.type === 'file' ? (
             <FilePickField value={files[f.key] ?? null} onChange={(v) => setFiles((prev) => ({ ...prev, [f.key]: v }))} />
           ) : f.type === 'select' ? (
             <Select
@@ -118,6 +125,7 @@ export function FormSheet({
             <DateInput value={values[f.key] ?? ''} onChange={(v) => set(f.key, v)} />
           ) : (
             <Input
+              accessibilityLabel={f.label}
               value={values[f.key] ?? ''}
               onChangeText={(v) => set(f.key, v)}
               placeholder={f.placeholder}
@@ -193,5 +201,57 @@ function FilePickField({ value, onChange }: { value: PickedFile | null; onChange
       <Button small variant="ghost" icon="cloud-upload-outline" title="Choose file" onPress={async () => onChange(await pickFile())} />
       <Button small variant="ghost" icon="camera-outline" title="Take photo" onPress={async () => onChange(await takePhoto())} />
     </Row>
+  );
+}
+
+type Pick3 = 'none' | Level;
+
+/** Admin ticks what a manager may do: each area No / View / Edit, plus extra rights. */
+function PermsField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const p = parsePerms(value);
+  const update = (next: Perms) => onChange(permsText(next));
+  return (
+    <View style={{ gap: 10 }}>
+      {AREAS.map((a) => (
+        <View key={a.key} style={{ padding: 10, borderRadius: 14, backgroundColor: hexA(C.primary, 0.05) }}>
+          <Text style={{ color: C.text, fontFamily: F.semi, fontSize: 14 }}>{a.label}</Text>
+          <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 12, marginBottom: 2 }}>{a.hint}</Text>
+          <Chips<Pick3>
+            options={['none', 'view', 'edit']}
+            value={p[a.key] ?? 'none'}
+            labels={{ none: 'No access', view: 'View only', edit: 'View & edit' }}
+            onChange={(v) => {
+              const next = { ...p };
+              if (v === 'none') delete next[a.key];
+              else next[a.key] = v;
+              update(next);
+            }}
+          />
+        </View>
+      ))}
+      {FLAGS.map((f) => {
+        const on = !!p[f.key];
+        return (
+          <Pressable
+            key={f.key}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on }}
+            onPress={() => {
+              const next = { ...p };
+              if (on) delete next[f.key];
+              else next[f.key] = true;
+              update(next);
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 14, backgroundColor: hexA(on ? C.green : C.primary, on ? 0.08 : 0.05) }}
+          >
+            <Ionicons name={on ? 'checkbox' : 'square-outline'} size={22} color={on ? C.green : C.muted} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: C.text, fontFamily: F.semi, fontSize: 14 }}>{f.label}</Text>
+              <Text style={{ color: C.muted, fontFamily: F.regular, fontSize: 12 }}>{f.hint}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }

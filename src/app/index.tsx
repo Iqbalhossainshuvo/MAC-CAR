@@ -8,5 +8,5 @@ export default function Index() {
   const { loading, user } = useAuth();
   if (loading) return <Loading text="Starting MAC CAR…" />;
   if (!user) return <Redirect href="/login" />;
-  return <Redirect href={user.role === 'admin' ? '/admin' : '/driver'} />;
+  return <Redirect href={user.role === 'admin' || user.role === 'manager' ? '/admin' : '/driver'} />;
 }

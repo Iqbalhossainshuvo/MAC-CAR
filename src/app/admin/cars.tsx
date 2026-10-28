@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { editCar } from '@/components/editors';
+import { NoAccess } from '@/components/NoAccess';
 import { useFormSheet } from '@/components/FormSheet';
 import {
   Badge,
@@ -26,11 +27,13 @@ import { useFleet } from '@/lib/data';
 import { expiryLevel, money, num, personName } from '@/lib/format';
 import { carMoney, currentAssignment } from '@/lib/stats';
 import { CAR_STATUSES } from '@/lib/types';
+import { usePerm } from '@/lib/perms';
 
 type Filter = 'all' | 'alerts' | (typeof CAR_STATUSES)[number];
 
 export default function Cars() {
   const { data: d, loading, error, reload, personById, firstLoad } = useFleet();
+  const perm = usePerm();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const form = useFormSheet();
@@ -57,6 +60,7 @@ export default function Cars() {
       });
   }, [d, q, filter, personById]);
 
+  if (!perm.can('cars')) return <NoAccess what="cars" />;
   if (firstLoad) return <Loading />;
 
   return (
@@ -137,7 +141,7 @@ export default function Cars() {
           ))}
         </View>
       </Screen>
-      <Fab label="Add car" onPress={() => editCar(form.open, reload)} />
+      {perm.can('cars', 'edit') ? <Fab label="Add car" onPress={() => editCar(form.open, reload)} /> : null}
       {form.element}
     </View>
   );

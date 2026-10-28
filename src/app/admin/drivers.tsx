@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { newUser } from '@/components/editors';
+import { NoAccess } from '@/components/NoAccess';
 import { useFormSheet } from '@/components/FormSheet';
 import {
   Badge,
@@ -24,11 +25,13 @@ import {
 import { useFleet } from '@/lib/data';
 import { carName, fmtDate, money, personName, sum } from '@/lib/format';
 import { counted, currentAssignment } from '@/lib/stats';
+import { usePerm } from '@/lib/perms';
 
 type Filter = 'all' | 'driving' | 'free' | 'inactive';
 
 export default function Drivers() {
   const { data: d, loading, error, reload, carById, firstLoad } = useFleet();
+  const perm = usePerm();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const form = useFormSheet();
@@ -66,6 +69,7 @@ export default function Drivers() {
       });
   }, [d, q, filter, carById]);
 
+  if (!perm.can('drivers')) return <NoAccess what="drivers" />;
   if (firstLoad) return <Loading />;
 
   return (
@@ -146,7 +150,7 @@ export default function Drivers() {
           ))}
         </View>
       </Screen>
-      <Fab label="Add driver" icon="person-add" onPress={() => newUser(form.open, reload, 'driver')} />
+      {perm.can('logins') ? <Fab label="Add driver" icon="person-add" onPress={() => newUser(form.open, reload, 'driver')} /> : null}
       {form.element}
     </View>
   );

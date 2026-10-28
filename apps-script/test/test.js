@@ -126,4 +126,50 @@ ok(call({action:'data',token:A4}).data.expenses.find(x=>x.id===p2).archived===tr
 ok(!call({action:'data',token:R4}).data.expenses.some(x=>x.id===p2),'driver does not see archived expense');
 }
 
+// --- manager (admin assistant) with limited permissions
+{
+const A5=call({action:'login',username:'admin',password:'123456'}).data.token;
+const all=call({action:'data',token:A5}).data;
+const rah=all.profiles.find(p=>p.username==='rahim');const adminU=all.profiles.find(p=>p.role==='admin');
+r=call({action:'saveUser',token:A5,user:{username:'sumon',full_name:'Sumon Manager',password:'manager1',role:'manager',permissions:'cars:edit, expenses:view ,approve,bogus,salary:hack'}});
+ok(r.ok&&r.data.role==='manager'&&r.data.permissions==='cars:edit,expenses:view,salary:view,approve','manager created, permissions cleaned');const mgr=r.data.id;
+const M=call({action:'login',username:'sumon',password:'manager1'});ok(M.ok&&M.data.user.permissions,'manager login gets permissions');const MT=M.data.token;
+let d=call({action:'data',token:MT}).data;
+ok(d.incomes.length===0,'no income permission: no income data');
+ok(d.expenses.length>0&&d.payroll.length>0,'expenses + salary view: data sent');
+ok(d.expenses.every(x=>!x.archived),'no archive permission: archived rows hidden');
+ok(d.profiles.find(p=>p.id===rah.id).iqama_no===undefined&&!('license_no' in d.profiles.find(p=>p.id===rah.id)),'no drivers permission: driver details stripped');
+ok(!('email' in d.profiles.find(p=>p.id===adminU.id)),'admin profile minimal for manager');
+ok(d.docs.every(x=>x.car_id),'only car documents (no drivers permission)');
+r=call({action:'save',token:MT,table:'cars',row:{plate_no:'MGR 9',status:'active'}});ok(r.ok,'manager with cars:edit adds car');const mcar=r.data.id;
+r=call({action:'save',token:MT,table:'incomes',row:{car_id:mcar,amount:10,income_date:'2026-10-01',payment_status:'paid'}});ok(!r.ok&&/permission/.test(r.error),'manager without income blocked');
+r=call({action:'save',token:MT,table:'expenses',row:{car_id:mcar,category:'fuel',amount:10,expense_date:'2026-10-01',paid_by:'company',status:'approved'}});ok(!r.ok,'expenses view only: cannot add');
+r=call({action:'save',token:MT,table:'payroll',row:{driver_id:rah.id,type:'bonus',amount:5,entry_date:'2026-10-01'}});ok(!r.ok,'salary view only: cannot add');
+const pend=call({action:'save',token:call({action:'login',username:'rahim',password:'driver1'}).data.token,table:'expenses',row:{car_id:car,category:'toll',amount:15,expense_date:'2026-10-22',paid_by:'driver'}}).data.id;
+r=call({action:'save',token:MT,table:'expenses',row:{id:pend,status:'approved'}});ok(r.ok&&r.data.status==='approved','manager with approve approves');
+r=call({action:'save',token:MT,table:'expenses',row:{id:pend,amount:999}});ok(!r.ok,'approve only: cannot change the amount');
+r=call({action:'remove',token:MT,table:'expenses',id:pend});ok(!r.ok,'expenses view only: cannot delete');
+r=call({action:'restore',token:MT,table:'cars',id:car2});ok(!r.ok,'no archive permission: cannot restore');
+r=call({action:'saveUser',token:MT,user:{username:'x2',full_name:'X',password:'123456'}});ok(!r.ok,'no logins permission: cannot create users');
+r=call({action:'saveUser',token:MT,user:{id:mgr,role:'admin',permissions:'income:edit',phone:'011'}});ok(r.ok&&r.data.role==='manager'&&r.data.permissions==='cars:edit,expenses:view,salary:view,approve'&&r.data.phone==='011','manager cannot raise own access');
+// second manager: expenses edit without approve, logins, archive, drivers
+r=call({action:'saveUser',token:A5,user:{username:'nila',full_name:'Nila',password:'manager2',role:'manager',permissions:'expenses:edit,drivers:edit,logins,archive'}});const m2=r.data.id;
+const N=call({action:'login',username:'nila',password:'manager2'}).data.token;
+r=call({action:'save',token:N,table:'expenses',row:{car_id:car,category:'repair',amount:40,expense_date:'2026-10-23',paid_by:'company',status:'approved',waived:true}});ok(r.ok&&r.data.status==='pending'&&!r.data.waived,'no approve: own expense saved as pending');const ne=r.data.id;
+r=call({action:'save',token:N,table:'expenses',row:{id:ne,amount:45}});ok(r.ok&&r.data.amount===45,'edit pending expense');
+r=call({action:'save',token:N,table:'expenses',row:{id:ne,status:'approved'}});ok(!r.ok,'no approve: cannot approve');
+r=call({action:'save',token:N,table:'expenses',row:{id:pend,amount:1}});ok(!r.ok,'no approve: cannot change an approved expense');
+r=call({action:'saveUser',token:N,user:{username:'newdrv',full_name:'New Driver',password:'123456',role:'admin',monthly_salary:9000}});ok(!r.ok,'manager cannot create an admin');
+r=call({action:'saveUser',token:N,user:{username:'newdrv',full_name:'New Driver',password:'123456',monthly_salary:9000}});ok(r.ok&&r.data.role==='driver'&&!r.data.monthly_salary,'manager with logins creates driver (salary needs salary:edit)');
+r=call({action:'saveUser',token:N,user:{id:r.data.id,password:'abcdef'}});ok(r.ok&&call({action:'login',username:'newdrv',password:'abcdef'}).ok,'manager resets driver password');
+r=call({action:'saveUser',token:N,user:{id:adminU.id,password:'hacked1'}});ok(!r.ok,'manager cannot touch admin');
+r=call({action:'saveUser',token:N,user:{id:mgr,active:false}});ok(!r.ok,'manager cannot touch another manager');
+d=call({action:'data',token:N}).data;ok(d.expenses.some(x=>x.archived)&&d.payroll.length===0,'archive permission shows archived; no salary data');
+ok(d.profiles.find(p=>p.id===rah.id).monthly_salary===undefined,'salary hidden without salary permission');
+r=call({action:'restore',token:N,table:'cars',id:car3});ok(!r.ok,'archive but no cars:edit: cannot restore a car');
+r=call({action:'save',token:N,table:'car_documents',row:{driver_id:rah.id,doc_type:'License'}});ok(r.ok,'drivers:edit adds driver document');
+r=call({action:'save',token:N,table:'car_documents',row:{car_id:car,doc_type:'Insurance'}});ok(!r.ok,'no cars:edit: cannot add car document');
+r=call({action:'saveUser',token:A5,user:{id:mgr,active:false}});ok(!call({action:'data',token:MT}).ok,'deactivated manager blocked');
+}
+
 console.log(fails?fails+' FAILED':'ALL PASSED');

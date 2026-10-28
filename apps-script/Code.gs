@@ -22,7 +22,7 @@ var TABLES = {
   users: {
     sheet: 'Users',
     cols: ['id', 'username', 'email', 'full_name', 'phone', 'role', 'active', 'nationality', 'iqama_no',
-      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt', 'monthly_salary'],
+      'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt', 'monthly_salary', 'permissions'],
     num: ['monthly_salary'],
     bool: ['active'],
   },
@@ -91,7 +91,7 @@ var ENUMS = {
     paid_by: ['company', 'driver'],
     status: ['pending', 'approved', 'rejected'],
   },
-  users: { role: ['admin', 'driver'] },
+  users: { role: ['admin', 'manager', 'driver'] },
   payroll: {
     type: ['salary', 'bonus', 'advance', 'deduction', 'payment', 'refund'],
     method: ['cash', 'bank', 'other'],
@@ -368,6 +368,105 @@ function requireAdmin_(u) {
   if (!isAdmin_(u)) throw new Error('Only an admin can do this');
 }
 
+// ---------------------------------------------------------------- manager (admin assistant) permissions
+//
+// A manager helps the admin. The admin ticks what each manager may do; it is stored in the
+// "permissions" column as a list, e.g. "cars:edit,expenses:view,approve,reports".
+//   areas (view or edit): cars, drivers, expenses, income, salary
+//   extras (on/off):      approve  – approve/reject expenses, waive fines
+//                         logins   – create driver logins, reset driver passwords, (de)activate drivers
+//                         reports  – reports, profit and all money totals (read only)
+//                         archive  – see archived items and restore them (in areas they can edit)
+// A manager can never touch admins, other managers or anyone's permissions.
+
+var PERM_AREAS = ['cars', 'drivers', 'expenses', 'income', 'salary'];
+var PERM_FLAGS = ['approve', 'logins', 'reports', 'archive'];
+
+function isManager_(u) {
+  return u.role === 'manager' && !!u.active;
+}
+
+function isStaff_(u) {
+  return isAdmin_(u) || isManager_(u);
+}
+
+/** Parse + clean a permissions list. Unknown entries are dropped. */
+function parsePerms_(text) {
+  var out = {};
+  String(text || '').split(/[\s,;]+/).forEach(function (t) {
+    var bits = t.trim().toLowerCase().split(':');
+    var k = bits[0];
+    if (PERM_AREAS.indexOf(k) >= 0) {
+      var lvl = bits[1] === 'edit' ? 'edit' : 'view';
+      if (out[k] !== 'edit') out[k] = lvl;
+    } else if (PERM_FLAGS.indexOf(k) >= 0) {
+      out[k] = true;
+    }
+  });
+  return out;
+}
+
+function permsText_(text) {
+  var p = parsePerms_(text);
+  var out = [];
+  PERM_AREAS.forEach(function (a) { if (p[a]) out.push(a + ':' + p[a]); });
+  PERM_FLAGS.forEach(function (f) { if (p[f]) out.push(f); });
+  return out.join(',');
+}
+
+/** can_(me, 'cars', 'edit'), can_(me, 'expenses') (= view), can_(me, 'approve') */
+function can_(u, what, level) {
+  if (isAdmin_(u)) return true;
+  if (!isManager_(u)) return false;
+  var p = parsePerms_(u.permissions);
+  if (PERM_FLAGS.indexOf(what) >= 0) return !!p[what];
+  if (level === 'edit') return p[what] === 'edit';
+  return p[what] === 'view' || p[what] === 'edit';
+}
+
+function need_(u, what, level) {
+  if (!can_(u, what, level)) throw new Error('You do not have permission for this (' + what + (level ? ' ' + level : '') + '). Ask the admin.');
+}
+
+/** Which permission area a row belongs to. */
+function areaOf_(table, row) {
+  if (table === 'car_documents') return row.car_id ? 'cars' : 'drivers';
+  return { cars: 'cars', assignments: 'cars', daily_logs: 'drivers', incomes: 'income', expenses: 'expenses', payroll: 'salary' }[table];
+}
+
+/** Can this person read expenses (they also feed salary accounts and reports)? */
+function canReadExpenses_(u) {
+  return can_(u, 'expenses') || can_(u, 'approve') || can_(u, 'salary') || can_(u, 'reports');
+}
+
+/** Rules for a manager saving a row (old = current row when editing). Throws or adjusts row. */
+function checkManagerSave_(me, table, row, old) {
+  var merged = old ? merge_(old, row) : row;
+  if (table !== 'expenses') {
+    need_(me, areaOf_(table, merged), 'edit');
+    if (old && table === 'car_documents' && areaOf_(table, old) !== areaOf_(table, merged)) need_(me, areaOf_(table, old), 'edit');
+    return;
+  }
+  var approve = can_(me, 'approve');
+  if (!old) {
+    need_(me, 'expenses', 'edit');
+    if (!approve) {
+      row.status = 'pending';
+      delete row.waived;
+    }
+    return;
+  }
+  var norm = function (v) { return v === null || v === undefined ? '' : String(v); };
+  var touched = Object.keys(row).filter(function (k) { return norm(row[k]) !== norm(old[k]); });
+  var decision = touched.filter(function (k) { return k === 'status' || k === 'waived'; });
+  var other = touched.filter(function (k) { return k !== 'status' && k !== 'waived'; });
+  if (decision.length) need_(me, 'approve');
+  if (other.length) {
+    need_(me, 'expenses', 'edit');
+    if (!approve && old.status !== 'pending') throw new Error('Only someone who can approve may change an approved or rejected expense');
+  }
+}
+
 // ---------------------------------------------------------------- data
 
 function today_() {
@@ -401,6 +500,7 @@ function loadData_(me) {
   }
 
   var live = function (r) { return !r.archived; };
+  if (isManager_(me)) return managerData_(me, users, cars, docs, assignments, expenses, logs);
   cars = cars.filter(live);
   docs = docs.filter(live);
   expenses = expenses.filter(live);
@@ -423,6 +523,34 @@ function loadData_(me) {
     expenses: expenses.filter(function (x) { return x.driver_id === me.id; }),
     logs: logs.filter(function (l) { return l.driver_id === me.id; }),
     payroll: readTable_('payroll').filter(function (x) { return x.driver_id === me.id && !x.archived; }),
+  };
+}
+
+/** A manager only receives the tables their permissions allow. */
+function managerData_(me, users, cars, docs, assignments, expenses, logs) {
+  var keep = function (rows) { return can_(me, 'archive') ? rows : rows.filter(function (r) { return !r.archived; }); };
+  var seeDrivers = can_(me, 'drivers');
+  var seePay = can_(me, 'salary') || can_(me, 'reports');
+  var profiles = users.map(function (u) {
+    if (u.id === me.id) return publicUser_(u);
+    if (u.role !== 'driver') return { id: u.id, full_name: u.full_name, username: u.username, role: u.role, active: u.active };
+    var p = publicUser_(u);
+    if (!seePay) delete p.monthly_salary;
+    if (!seeDrivers) {
+      return { id: p.id, full_name: p.full_name, username: p.username, role: p.role, active: p.active, monthly_salary: p.monthly_salary };
+    }
+    return p;
+  });
+  return {
+    me: publicUser_(me),
+    cars: keep(cars),
+    profiles: profiles,
+    docs: keep(docs).filter(function (d) { return can_(me, areaOf_('car_documents', d)); }),
+    assignments: keep(assignments),
+    incomes: can_(me, 'income') || can_(me, 'reports') ? keep(readTable_('incomes')) : [],
+    expenses: canReadExpenses_(me) ? keep(expenses) : [],
+    logs: can_(me, 'drivers') || can_(me, 'cars') ? keep(logs) : [],
+    payroll: seePay ? keep(readTable_('payroll')) : [],
   };
 }
 
@@ -488,7 +616,12 @@ function save_(me, table, input) {
   var row = clean_(table, input);
   var saved;
 
-  if (isAdmin_(me)) {
+  if (isStaff_(me)) {
+    if (isManager_(me)) {
+      var before = id ? findBy_(table, 'id', id) : null;
+      if (id && !before) throw new Error('Record not found');
+      checkManagerSave_(me, table, row, before);
+    }
     if (table === 'payroll') checkPayroll_(id ? merge_(findBy_('payroll', 'id', id) || {}, row) : row, id);
     if (table === 'cars' && row.plate_no) {
       var dup = readTable_('cars').filter(function (c) {
@@ -575,7 +708,12 @@ function remove_(me, table, id) {
   var row = findBy_(table, 'id', id);
   if (!row) throw new Error('Record not found');
 
-  if (!isAdmin_(me)) {
+  if (isManager_(me)) {
+    need_(me, areaOf_(table, row), 'edit');
+    if (table === 'expenses' && !can_(me, 'approve') && row.status !== 'pending') {
+      throw new Error('Only someone who can approve may delete an approved or rejected expense');
+    }
+  } else if (!isAdmin_(me)) {
     var own = row.driver_id === me.id;
     var okExpense = table === 'expenses' && own && row.status === 'pending';
     var okLog = table === 'daily_logs' && own && row.log_date === today_();
@@ -585,10 +723,11 @@ function remove_(me, table, id) {
 }
 
 function restore_(me, table, id) {
-  requireAdmin_(me);
+  if (!isAdmin_(me)) need_(me, 'archive');
   if (!TABLES[table] || table === 'users') throw new Error('Unknown table');
   var row = findBy_(table, 'id', id);
   if (!row) throw new Error('Record not found');
+  if (isManager_(me)) need_(me, areaOf_(table, row), 'edit');
   if (table === 'payroll' && row.type === 'salary') checkPayroll_(merge_(row, { archived: false }), id);
   if (table === 'cars') {
     var dup = readTable_('cars').some(function (c) {
@@ -602,15 +741,28 @@ function restore_(me, table, id) {
 function saveUser_(me, input) {
   var id = input.id;
   var isSelf = id && id === me.id;
-  if (!isAdmin_(me) && !isSelf) throw new Error('Only an admin can manage users');
+  var helper = isManager_(me) && !isSelf; // a manager managing driver logins
+  if (!isAdmin_(me) && !isSelf && !(helper && can_(me, 'logins'))) throw new Error('Only an admin can manage users');
 
   var row = clean_('users', input);
   if (row.username) row.username = String(row.username).trim().toLowerCase();
   if (row.email) row.email = String(row.email).trim().toLowerCase();
+  if ('permissions' in row) row.permissions = permsText_(row.permissions);
 
-  if (!isAdmin_(me)) {
-    // A driver may only update their own phone number
+  if (!isAdmin_(me) && isSelf) {
+    // Drivers and managers may only update their own phone number
     row = { phone: row.phone };
+  } else if (helper) {
+    // Managers create / edit driver logins only, never admins or managers
+    if (id) {
+      var target = findBy_('users', 'id', id);
+      if (!target) throw new Error('User not found');
+      if (target.role !== 'driver') throw new Error('Only the admin can change admin or manager accounts');
+    }
+    if (row.role && row.role !== 'driver') throw new Error('Only the admin can give admin or manager access');
+    row.role = 'driver';
+    delete row.permissions;
+    if (!can_(me, 'salary', 'edit')) delete row.monthly_salary;
   }
 
   var all = readTable_('users');
@@ -628,11 +780,11 @@ function saveUser_(me, input) {
   if (id) {
     var old = findBy_('users', 'id', id);
     if (!old) throw new Error('User not found');
-    if (isSelf && isAdmin_(me) && (row.role === 'driver' || row.active === false)) {
+    if (isSelf && isAdmin_(me) && ((row.role && row.role !== 'admin') || row.active === false)) {
       throw new Error('You cannot remove your own admin access');
     }
     var merged = merge_(old, row);
-    if (password && isAdmin_(me)) {
+    if (password && (isAdmin_(me) || helper)) {
       merged.salt = Utilities.getUuid();
       merged.password_hash = hash_(password, merged.salt);
     }
@@ -696,6 +848,7 @@ function trashFile_(fileId) {
 
 function canSeeDoc_(me, doc) {
   if (isAdmin_(me)) return true;
+  if (isManager_(me)) return can_(me, areaOf_('car_documents', doc));
   return doc.driver_id === me.id || (doc.car_id && drivesNow_(me, doc.car_id));
 }
 
@@ -715,6 +868,17 @@ function fileRow_(me, table, id, forWrite) {
   var row = findBy_(table, 'id', id);
   if (!row) throw new Error('Record not found');
   if (isAdmin_(me)) return row;
+  if (isManager_(me)) {
+    if (table === 'car_documents') {
+      need_(me, areaOf_(table, row), forWrite ? 'edit' : 'view');
+    } else if (forWrite) {
+      need_(me, 'expenses', 'edit');
+      if (!can_(me, 'approve') && row.status !== 'pending') throw new Error('Only someone who can approve may change the receipt after approval');
+    } else if (!canReadExpenses_(me)) {
+      throw new Error('Not allowed');
+    }
+    return row;
+  }
   if (table === 'car_documents') {
     if (forWrite) throw new Error('Only an admin can change document files');
     if (!canSeeDoc_(me, row)) throw new Error('Not allowed');

@@ -8,6 +8,7 @@ import { Avatar, Button, C, F, GRAD, IconBtn, Loading, Row, glow, hexA } from '@
 import { useAuth } from '@/lib/auth';
 import { clearFleetCache } from '@/lib/data';
 import { personName } from '@/lib/format';
+import { usePerm } from '@/lib/perms';
 
 function Brand() {
   return (
@@ -41,7 +42,7 @@ function Menu(props: DrawerContentComponentProps) {
               {personName(user)}
             </Text>
             <Text style={{ color: C.muted, fontSize: 12 }} numberOfLines={1}>
-              {user?.email ?? user?.username}
+              {user?.role === 'manager' ? 'Manager' : user?.email ?? user?.username}
             </Text>
           </View>
         </Row>
@@ -85,11 +86,15 @@ const hidden = { drawerItemStyle: { display: 'none' as const } };
 export default function AdminLayout() {
   const { loading, user } = useAuth();
   const { width } = useWindowDimensions();
+  const perm = usePerm();
   const wide = width >= 1024;
 
   if (loading) return <Loading />;
   if (!user) return <Redirect href="/login" />;
-  if (user.role !== 'admin') return <Redirect href="/driver" />;
+  if (user.role !== 'admin' && user.role !== 'manager') return <Redirect href="/driver" />;
+
+  // managers only see the menus the admin gave them
+  const show = (ok: boolean) => (ok ? {} : hidden);
 
   return (
     <Drawer
@@ -114,14 +119,14 @@ export default function AdminLayout() {
       }}
     >
       <Drawer.Screen name="index" options={{ headerShown: false, title: 'Dashboard', drawerLabel: 'Dashboard', drawerIcon: icon('grid') }} />
-      <Drawer.Screen name="cars" options={{ title: 'Cars', drawerLabel: 'Car', drawerIcon: icon('car-sport') }} />
-      <Drawer.Screen name="drivers" options={{ title: 'Drivers', drawerLabel: 'Driver', drawerIcon: icon('people') }} />
-      <Drawer.Screen name="salary" options={{ title: 'Salary', drawerLabel: 'Salary', drawerIcon: icon('wallet') }} />
-      <Drawer.Screen name="income" options={{ title: 'Income', drawerLabel: 'Income', drawerIcon: icon('trending-up') }} />
-      <Drawer.Screen name="expenses" options={{ title: 'Expenses', drawerLabel: 'Expense', drawerIcon: icon('trending-down') }} />
-      <Drawer.Screen name="reports" options={{ title: 'Reports', drawerLabel: 'Report', drawerIcon: icon('document-text') }} />
-      <Drawer.Screen name="archive" options={{ title: 'Archive', drawerLabel: 'Archive', drawerIcon: icon('archive') }} />
-      <Drawer.Screen name="users" options={{ title: 'Users', drawerLabel: 'User', drawerIcon: icon('key') }} />
+      <Drawer.Screen name="cars" options={{ ...show(perm.can('cars')), title: 'Cars', drawerLabel: 'Car', drawerIcon: icon('car-sport') }} />
+      <Drawer.Screen name="drivers" options={{ ...show(perm.can('drivers')), title: 'Drivers', drawerLabel: 'Driver', drawerIcon: icon('people') }} />
+      <Drawer.Screen name="salary" options={{ ...show(perm.can('salary')), title: 'Salary', drawerLabel: 'Salary', drawerIcon: icon('wallet') }} />
+      <Drawer.Screen name="income" options={{ ...show(perm.can('income')), title: 'Income', drawerLabel: 'Income', drawerIcon: icon('trending-up') }} />
+      <Drawer.Screen name="expenses" options={{ ...show(perm.can('expenses') || perm.can('approve')), title: 'Expenses', drawerLabel: 'Expense', drawerIcon: icon('trending-down') }} />
+      <Drawer.Screen name="reports" options={{ ...show(perm.can('reports')), title: 'Reports', drawerLabel: 'Report', drawerIcon: icon('document-text') }} />
+      <Drawer.Screen name="archive" options={{ ...show(perm.can('archive')), title: 'Archive', drawerLabel: 'Archive', drawerIcon: icon('archive') }} />
+      <Drawer.Screen name="users" options={{ ...show(perm.admin || perm.can('logins')), title: 'Users', drawerLabel: 'User', drawerIcon: icon('key') }} />
       <Drawer.Screen
         name="car/[id]"
         options={{ ...hidden, title: 'Car details', headerLeft: () => <BackButton fallback="/admin/cars" /> }}

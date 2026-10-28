@@ -31,10 +31,17 @@ import { carName, money, num, personName, sum, today } from '@/lib/format';
 import { printReport } from '@/lib/print';
 import { ALL_PARTS, reportSpec, runReport } from '@/lib/reports';
 import { counted, currentAssignment } from '@/lib/stats';
+import { expenseRowProps, usePerm } from '@/lib/perms';
+import { NoAccess } from '@/components/NoAccess';
 
 export default function DriverDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: d, loading, error, reload, carById, personById, firstLoad } = useFleet();
+  const perm = usePerm();
+  const seeDriver = perm.can('drivers');
+  const driverEdit = perm.can('drivers', 'edit');
+  const logins = perm.can('logins');
+  const expEdit = perm.can('expenses', 'edit');
   const form = useFormSheet();
   const p = personById.get(id);
 
@@ -61,6 +68,7 @@ export default function DriverDetails() {
 
   const driverDocs = p ? d.docs.filter((x) => x.driver_id === p.id && !x.car_id) : [];
 
+  if (!seeDriver && !perm.can('salary')) return <NoAccess what="drivers" />;
   if (firstLoad) return <Loading />;
   if (!p || !v) {
     return (
@@ -81,16 +89,18 @@ export default function DriverDetails() {
   };
 
   const expenseRow = (e: (typeof v.work)[number]) => (
-    <ExpenseRow receipt={{ canUpload: true, canRemove: true }}
+    <ExpenseRow
       key={e.id}
       e={e}
       cars={carById}
       people={personById}
       showDriver={false}
-      onApprove={e.status === 'pending' ? () => decide(e.id, 'approved') : undefined}
-      onReject={e.status === 'pending' ? () => decide(e.id, 'rejected') : undefined}
-      onEdit={() => editExpense(form.open, reload, d, e)}
-      onDelete={() => deleteRow('expenses', e.id, 'this entry', reload)}
+      {...expenseRowProps(perm, e, {
+        approve: e.status === 'pending' ? () => decide(e.id, 'approved') : undefined,
+        reject: e.status === 'pending' ? () => decide(e.id, 'rejected') : undefined,
+        edit: () => editExpense(form.open, reload, d, e),
+        del: () => deleteRow('expenses', e.id, 'this entry', reload),
+      })}
     />
   );
 
@@ -112,24 +122,32 @@ export default function DriverDetails() {
           </View>
           <Row>
             <IconBtn icon="print-outline" label="Print driver report" onPress={print} />
-            <IconBtn icon="key-outline" color={C.amber} label="Reset password" onPress={() => resetPassword(form.open, p)} />
-            <IconBtn icon="create-outline" label="Edit driver" onPress={() => editDriverProfile(form.open, reload, p)} />
+            {logins ? <IconBtn icon="key-outline" color={C.amber} label="Reset password" onPress={() => resetPassword(form.open, p)} /> : null}
+            {logins ? <IconBtn icon="create-outline" label="Edit driver" onPress={() => editDriverProfile(form.open, reload, p)} /> : null}
           </Row>
         </Row>
       </Card>
 
+      {perm.seeExpenses ? (
       <StatGrid>
         <StatCard label="Work / expenses" value={money(v.spent)} icon="construct" tone="magenta" sub={`${v.work.length} entries`} />
         <StatCard label="Fines" value={money(v.fineTotal)} icon="alert-circle" tone="red" sub={`${v.fines.length} violations`} />
         <StatCard label="Driver paid" value={money(v.owed)} icon="wallet" tone="amber" sub="Paid from own pocket" />
         <StatCard label="Km reported" value={num(v.km)} icon="speedometer" sub={`Cash collected ${money(v.cash)}`} />
       </StatGrid>
+      ) : null}
 
-      <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginBottom: 10 }}>Salary & account</Text>
-      <SalaryAccount d={d} driver={p} admin open={form.open} reload={reload} />
+      {perm.can('salary') ? (
+        <>
+          <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginBottom: 10 }}>Salary & account</Text>
+          <SalaryAccount d={d} driver={p} admin open={form.open} reload={reload} />
+        </>
+      ) : null}
 
       <Columns>
         <Col>
+          {seeDriver ? (
+          <>
           <Card>
             <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 15, marginBottom: 8 }}>Profile</Text>
             <KV label="Full name" value={p.full_name || '-'} />
@@ -146,27 +164,29 @@ export default function DriverDetails() {
 
           <ListCard
             title="Documents"
-            right={<Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, { driverId: p.id })} />}
+            right={driverEdit ? <Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, { driverId: p.id })} /> : undefined}
           >
             {driverDocs.length ? (
               driverDocs.map((x) => (
                 <DocRow
                   key={x.id}
                   d={x}
-                  manageFile
-                  onEdit={() => editDoc(form.open, reload, { driverId: p.id }, x)}
-                  onDelete={() => deleteRow('car_documents', x.id, x.doc_type, reload)}
+                  manageFile={driverEdit}
+                  onEdit={driverEdit ? () => editDoc(form.open, reload, { driverId: p.id }, x) : undefined}
+                  onDelete={driverEdit ? () => deleteRow('car_documents', x.id, x.doc_type, reload) : undefined}
                 />
               ))
             ) : (
               <Empty text="Add Iqama, license or passport copies with their expiry dates" icon="document-outline" />
             )}
           </ListCard>
+          </>
+          ) : null}
 
           <ListCard
             title="Cars · when & which"
             right={
-              <Button title="Assign" icon="car" small onPress={() => editAssignment(form.open, reload, d, { driver_id: p.id })} />
+              perm.can('cars', 'edit') ? <Button title="Assign" icon="car" small onPress={() => editAssignment(form.open, reload, d, { driver_id: p.id })} /> : undefined
             }
           >
             {v.assignments.length ? (
@@ -177,11 +197,15 @@ export default function DriverDetails() {
                   mode="car"
                   cars={carById}
                   people={personById}
-                  onEnd={async () => {
-                    if (await saveRow('assignments', { id: a.id, end_date: today() })) reload();
-                  }}
-                  onEdit={() => editAssignment(form.open, reload, d, a)}
-                  onDelete={() => deleteRow('assignments', a.id, 'this assignment', reload)}
+                  onEnd={
+                    perm.can('cars', 'edit')
+                      ? async () => {
+                          if (await saveRow('assignments', { id: a.id, end_date: today() })) reload();
+                        }
+                      : undefined
+                  }
+                  onEdit={perm.can('cars', 'edit') ? () => editAssignment(form.open, reload, d, a) : undefined}
+                  onDelete={perm.can('cars', 'edit') ? () => deleteRow('assignments', a.id, 'this assignment', reload) : undefined}
                 />
               ))
             ) : (
@@ -191,10 +215,12 @@ export default function DriverDetails() {
         </Col>
 
         <Col>
+          {perm.seeExpenses ? (
+          <>
           <ListCard
             title={`Work & expenses · ${money(v.spent)}`}
             right={
-              <Button
+              !expEdit ? undefined : <Button
                 title="Add"
                 icon="add"
                 small
@@ -210,7 +236,7 @@ export default function DriverDetails() {
             title={`Fines · ${money(v.fineTotal)}`}
             accent={C.red}
             right={
-              <Button
+              !expEdit ? undefined : <Button
                 title="Add fine"
                 icon="add"
                 small
@@ -221,16 +247,20 @@ export default function DriverDetails() {
           >
             {v.fines.length ? v.fines.map(expenseRow) : <Empty text="No fines — good driver!" icon="happy-outline" />}
           </ListCard>
+          </>
+          ) : null}
 
+          {seeDriver ? (
           <ListCard title="Daily reports">
             {v.logs.length ? (
               v.logs.slice(0, 30).map((l) => (
-                <LogRow key={l.id} l={l} cars={carById} people={personById} showDriver={false} onDelete={() => deleteRow('daily_logs', l.id, 'this daily report', reload)} />
+                <LogRow key={l.id} l={l} cars={carById} people={personById} showDriver={false} onDelete={driverEdit ? () => deleteRow('daily_logs', l.id, 'this daily report', reload) : undefined} />
               ))
             ) : (
               <Empty text="No daily reports yet" icon="clipboard-outline" />
             )}
           </ListCard>
+          ) : null}
           {v.now ? (
             <Text style={{ color: C.muted, fontSize: 12, textAlign: 'center' }}>Current car: {carName(carById.get(v.now.car_id))}</Text>
           ) : null}

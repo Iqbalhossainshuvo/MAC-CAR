@@ -29,6 +29,8 @@ import { printReport } from '@/lib/print';
 import { ALL_PARTS, PART_LABEL, reportSpec, runReport, type ReportPart } from '@/lib/reports';
 import { periodRange, PERIOD_LABEL, type Period } from '@/lib/stats';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/types';
+import { usePerm } from '@/lib/perms';
+import { NoAccess } from '@/components/NoAccess';
 
 const LIMIT = 50;
 
@@ -58,6 +60,7 @@ function Toggle({ on, label, onPress }: { on: boolean; label: string; onPress: (
 
 export default function Reports() {
   const { data: d, loading, error, reload, carById, personById, firstLoad } = useFleet();
+  const perm = usePerm();
   const [carId, setCarId] = useState('');
   const [driverId, setDriverId] = useState('');
   const [from, setFrom] = useState(periodRange('month').from ?? '');
@@ -73,6 +76,7 @@ export default function Reports() {
   );
   const r = useMemo(() => runReport(d, filter), [d, filter]);
 
+  if (!perm.can('reports')) return <NoAccess what="reports" />;
   if (firstLoad) return <Loading />;
 
   const setPeriod = (p: Period | 'custom') => {

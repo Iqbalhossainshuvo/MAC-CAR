@@ -96,6 +96,9 @@ type Op =
 export const pendingFiles = new Map<string, UploadFile>();
 
 let state: FleetData = EMPTY_FLEET;
+
+/** The signed-in user as of the last sync (for permission checks outside React). */
+export const currentMe = () => state.me;
 let userKey: string | null = null;
 let hydrated = false; // true once we have cache or a first server answer
 let lastSync = 0;
@@ -411,13 +414,20 @@ export function useFleet() {
 
 // ---------------------------------------------------------------- mutations (instant)
 
+const staffRole = (u?: Profile | null) => u?.role === 'admin' || u?.role === 'manager';
+
 function defaults(table: Table, row: Record<string, any>): Record<string, any> {
   const me = state.me;
   const now = new Date().toISOString();
   const base: Record<string, any> = { created_at: now };
-  if (me && me.role !== 'admin' && (table === 'expenses' || table === 'daily_logs')) {
+  if (me && !staffRole(me) && (table === 'expenses' || table === 'daily_logs')) {
     base.driver_id = me.id;
     if (table === 'expenses') base.status = 'pending';
+  }
+  // a manager who cannot approve: new expenses wait for approval (the server enforces the same)
+  if (me && me.role === 'manager' && table === 'expenses' && !/(^|,)approve(,|$)/.test(me.permissions ?? '')) {
+    base.status = 'pending';
+    base.waived = false;
   }
   const car = row.car_id ? state.cars.find((c) => c.id === row.car_id) : null;
   if (car) base.car_plate = car.plate_no;

@@ -149,6 +149,22 @@ export const profileFields: FieldDef[] = [
   { key: 'notes', label: 'Notes', type: 'multiline' },
 ];
 
+export const ROLE_OPTIONS: Option[] = [
+  { value: 'driver', label: 'Driver', sub: 'Own profile, car, daily work and expenses' },
+  { value: 'manager', label: 'Manager (admin assistant)', sub: 'Only what you tick below' },
+  { value: 'admin', label: 'Admin', sub: 'Everything' },
+];
+
+const PERMS_FIELD: FieldDef = {
+  key: 'permissions',
+  label: 'What can this manager do?',
+  type: 'perms',
+  showIf: (v) => v.role === 'manager',
+  hint: 'A manager never sees or changes admin accounts, and cannot give anyone more access.',
+};
+
+const driverOnly = (f: FieldDef): FieldDef => ({ ...f, showIf: (v) => v.role === 'driver' });
+
 export const newUserFields: FieldDef[] = [
   { key: 'full_name', label: 'Full name', required: true },
   { key: 'username', label: 'Username (for login)', required: true, placeholder: 'e.g. karim', hint: 'Small letters, no spaces. The user signs in with this.' },
@@ -159,17 +175,15 @@ export const newUserFields: FieldDef[] = [
     key: 'role',
     label: 'Role',
     type: 'select',
-    options: [
-      { value: 'driver', label: 'Driver' },
-      { value: 'admin', label: 'Admin' },
-    ],
+    options: ROLE_OPTIONS,
     required: true,
   },
-  { key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' },
-  { key: 'license_no', label: 'Driving license number' },
-  { key: 'license_expiry', label: 'License expiry', type: 'date' },
-  { key: 'iqama_no', label: 'Iqama / ID number' },
-  { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
+  PERMS_FIELD,
+  driverOnly({ key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' }),
+  driverOnly({ key: 'license_no', label: 'Driving license number' }),
+  driverOnly({ key: 'license_expiry', label: 'License expiry', type: 'date' }),
+  driverOnly({ key: 'iqama_no', label: 'Iqama / ID number' }),
+  driverOnly({ key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' }),
 ];
 
 /** Admin editing an existing user */
@@ -182,18 +196,16 @@ export const editUserFields: FieldDef[] = [
     key: 'role',
     label: 'Role',
     type: 'select',
-    options: [
-      { value: 'driver', label: 'Driver' },
-      { value: 'admin', label: 'Admin' },
-    ],
+    options: ROLE_OPTIONS,
     required: true,
   },
-  { key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' },
-  { key: 'nationality', label: 'Nationality' },
-  { key: 'iqama_no', label: 'Iqama / ID number' },
-  { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
-  { key: 'license_no', label: 'Driving license number' },
-  { key: 'license_expiry', label: 'License expiry', type: 'date' },
+  PERMS_FIELD,
+  driverOnly({ key: 'monthly_salary', label: 'Monthly salary (SAR)', type: 'number', hint: 'Used when adding the month\'s salary. Leave empty if not fixed.' }),
+  driverOnly({ key: 'nationality', label: 'Nationality' }),
+  driverOnly({ key: 'iqama_no', label: 'Iqama / ID number' }),
+  driverOnly({ key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' }),
+  driverOnly({ key: 'license_no', label: 'Driving license number' }),
+  driverOnly({ key: 'license_expiry', label: 'License expiry', type: 'date' }),
   { key: 'notes', label: 'Notes', type: 'multiline' },
 ];
 
