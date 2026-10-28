@@ -85,7 +85,7 @@ export default function Expenses() {
           />
           <StatCard
             compact
-            label="Waiting approval"
+            label="Waiting"
             value={money(sum(list.filter((e) => e.status === 'pending'), (e) => e.amount))}
             icon="hourglass"
             tone="magenta"
