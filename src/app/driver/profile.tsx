@@ -1,38 +1,24 @@
 import { router } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 
 import { useFormSheet } from '@/components/FormSheet';
 import { PageHeader } from '@/components/Greeting';
 import { DocRow } from '@/components/rows';
+import { editDoc } from '@/components/editors';
+import { MyProfile } from '@/components/MyProfile';
 import { SalaryAccount } from '@/components/SalaryAccount';
 import { CashAccount } from '@/components/CashAccount';
-import { Avatar, Badge, Button, C, Card, Empty, ExpiryBadge, F, KV, ListCard, Row, Screen } from '@/components/ui';
+import { Button, C, Empty, F, ListCard, Row, Screen } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { clearFleetCache, notify, saveUser, useFleet } from '@/lib/data';
-import { personName } from '@/lib/format';
+import { clearFleetCache, notify, useFleet } from '@/lib/data';
 
 export default function DriverProfile() {
-  const { user, signOut, setUser } = useAuth();
+  const { user, signOut } = useAuth();
   const { data: d, reload } = useFleet();
   const form = useFormSheet();
   const me = d.me ?? user;
   const myDocs = d.docs.filter((x) => x.driver_id === user?.id && !x.car_id);
-
-  const editPhone = () =>
-    form.open({
-      title: 'My phone number',
-      fields: [{ key: 'phone', label: 'Phone', type: 'phone' }],
-      initial: { phone: me?.phone },
-      onSubmit: async (val) => {
-        const u = await saveUser({ id: user!.id, phone: val.phone });
-        if (u) {
-          setUser(u);
-          reload();
-        }
-        return !!u;
-      },
-    });
 
   const changePassword = () =>
     form.open({
@@ -58,23 +44,7 @@ export default function DriverProfile() {
   return (
     <Screen>
       <PageHeader title="Profile" />
-      <Card style={{ alignItems: 'center', paddingVertical: 24 }}>
-        <Avatar name={personName(me)} size={84} />
-        <Text style={{ color: C.text, fontFamily: F.display, fontSize: 22, marginTop: 14 }}>{personName(me)}</Text>
-        <Text style={{ color: C.muted, fontFamily: F.regular, marginTop: 2 }}>@{me?.username}</Text>
-        <View style={{ marginTop: 10 }}>
-          <Badge text="Driver" tone="blue" />
-        </View>
-      </Card>
-
-      <Card>
-        <KV label="Phone" value={me?.phone ?? '-'} />
-        <KV label="Nationality" value={me?.nationality ?? '-'} />
-        <KV label="Iqama / ID" value={me?.iqama_no ?? '-'} />
-        <KV label="Iqama expiry" value={<ExpiryBadge date={me?.iqama_expiry} />} />
-        <KV label="License no." value={me?.license_no ?? '-'} />
-        <KV label="License expiry" value={<ExpiryBadge date={me?.license_expiry} />} />
-      </Card>
+      {me ? <MyProfile me={me} reload={reload} /> : null}
 
       {me ? (
         <>
@@ -84,12 +54,16 @@ export default function DriverProfile() {
         </>
       ) : null}
 
-      <ListCard title="My documents">
-        {myDocs.length ? myDocs.map((x) => <DocRow key={x.id} d={x} />) : <Empty text="Your admin has not added documents yet" icon="document-outline" />}
+      <ListCard title="My documents" right={<Button title="Add" icon="add" small onPress={() => editDoc(form.open, reload, { driverId: user!.id })} />}>
+        {myDocs.length ? (
+          myDocs.map((x) => <DocRow key={x.id} d={x} uploadOnly onEdit={() => editDoc(form.open, reload, { driverId: user!.id }, x)} />)
+        ) : (
+          <Empty text="Add your Iqama, license or passport with the expiry date and a photo" icon="document-outline" />
+        )}
       </ListCard>
+      <Text style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>You can add and update your details and documents. Nothing can be deleted — ask the admin if needed.</Text>
 
       <Row style={{ gap: 10, flexWrap: 'wrap' }}>
-        <Button title="Edit phone" icon="call-outline" variant="light" style={{ flexGrow: 1 }} onPress={editPhone} />
         {me?.has_password !== false ? (
           <Button title="Change password" icon="key-outline" variant="light" style={{ flexGrow: 1 }} onPress={changePassword} />
         ) : null}

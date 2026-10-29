@@ -217,7 +217,7 @@ export default function DriverHome() {
       <ListCard title="My expenses">
         {v.recent.length ? (
           v.recent.map((e) => (
-            <ExpenseRow key={e.id} e={e} cars={carById} people={personById} showDriver={false} receipt={{ canUpload: true, canRemove: e.status === 'pending' }} />
+            <ExpenseRow key={e.id} e={e} cars={carById} people={personById} showDriver={false} receipt={{ canUpload: e.status === 'pending', canRemove: false }} />
           ))
         ) : (
           <Empty text="Nothing yet. Tap + to add an expense." icon="wallet-outline" />

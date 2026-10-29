@@ -168,6 +168,32 @@ export const SALARY_FIELDS: FieldDef[] = [
 ];
 export const SALARY_KEYS = SALARY_FIELDS.map((f) => f.key);
 
+/** Extra personal details every user can fill in for himself. */
+export const PERSONAL_FIELDS: FieldDef[] = [
+  { key: 'date_of_birth', label: 'Date of birth', type: 'date' },
+  { key: 'address', label: 'Address', type: 'multiline' },
+  { key: 'emergency_name', label: 'Emergency contact name' },
+  { key: 'emergency_phone', label: 'Emergency contact phone', type: 'phone' },
+  { key: 'bank_name', label: 'Bank name' },
+  { key: 'iban', label: 'IBAN (for salary / payments)', placeholder: 'SA00 0000 0000 0000 0000 0000' },
+];
+
+/** What a user fills in on his own profile (same list as SELF_FIELDS on the server). */
+export const selfProfileFields = (role: string): FieldDef[] => [
+  { key: 'full_name', label: 'Full name', required: true },
+  { key: 'phone', label: 'Phone', type: 'phone' },
+  { key: 'nationality', label: 'Nationality' },
+  ...PERSONAL_FIELDS,
+  { key: 'iqama_no', label: 'Iqama / ID number' },
+  { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
+  ...(role === 'driver'
+    ? ([
+        { key: 'license_no', label: 'Driving license number' },
+        { key: 'license_expiry', label: 'License expiry', type: 'date' },
+      ] as FieldDef[])
+    : []),
+];
+
 export const profileFields: FieldDef[] = [
   { key: 'full_name', label: 'Full name', required: true },
   { key: 'phone', label: 'Phone', type: 'phone' },
@@ -177,6 +203,7 @@ export const profileFields: FieldDef[] = [
   { key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' },
   { key: 'license_no', label: 'Driving license number' },
   { key: 'license_expiry', label: 'License expiry', type: 'date' },
+  ...PERSONAL_FIELDS,
   { key: 'notes', label: 'Notes', type: 'multiline' },
 ];
 
@@ -238,6 +265,7 @@ export const editUserFields: FieldDef[] = [
   driverOnly({ key: 'iqama_expiry', label: 'Iqama expiry', type: 'date' }),
   driverOnly({ key: 'license_no', label: 'Driving license number' }),
   driverOnly({ key: 'license_expiry', label: 'License expiry', type: 'date' }),
+  ...PERSONAL_FIELDS,
   { key: 'notes', label: 'Notes', type: 'multiline' },
 ];
 

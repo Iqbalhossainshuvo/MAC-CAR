@@ -23,7 +23,8 @@ var TABLES = {
     sheet: 'Users',
     cols: ['id', 'username', 'email', 'full_name', 'phone', 'role', 'active', 'nationality', 'iqama_no',
       'iqama_expiry', 'license_no', 'license_expiry', 'notes', 'created_at', 'set_password', 'password_hash', 'salt', 'monthly_salary', 'permissions',
-      'basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'],
+      'basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance',
+      'date_of_birth', 'address', 'emergency_name', 'emergency_phone', 'bank_name', 'iban', 'profile_updated_at'],
     num: ['monthly_salary', 'basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'],
     bool: ['active'],
   },
@@ -145,6 +146,10 @@ var REQUIRED = {
   partner_ledger: ['partner_id', 'type', 'amount', 'entry_date'],
 };
 
+/** What every user may fill in / change on their own profile (they can never clear a filled field). */
+var SELF_FIELDS = ['full_name', 'phone', 'nationality', 'date_of_birth', 'address', 'emergency_name', 'emergency_phone',
+  'iqama_no', 'iqama_expiry', 'license_no', 'license_expiry', 'bank_name', 'iban'];
+
 var SALARY_PARTS = ['basic_salary', 'food_allowance', 'housing_allowance', 'transport_allowance', 'other_allowance'];
 var MONEY_FIELDS = ['amount', 'purchase_price', 'monthly_salary'].concat(SALARY_PARTS);
 
@@ -170,7 +175,7 @@ function round2_(v) {
   return n < 0 ? -r : r;
 }
 
-var DATE_FIELDS = ['rent_start', 'rent_end', 'iqama_expiry', 'license_expiry', 'purchase_date', 'issue_date', 'expiry_date', 'start_date',
+var DATE_FIELDS = ['date_of_birth', 'rent_start', 'rent_end', 'iqama_expiry', 'license_expiry', 'purchase_date', 'issue_date', 'expiry_date', 'start_date',
   'end_date', 'income_date', 'period_from', 'period_to', 'expense_date', 'log_date'];
 
 // ---------------------------------------------------------------- entry points
@@ -783,8 +788,9 @@ function save_(me, table, input) {
   } else {
     // Drivers: only add new expenses and daily logs for the car they drive today
     if (me.role !== 'driver') throw new Error('Not allowed');
-    if (id) throw new Error('Only an admin can edit saved entries');
+    if (table === 'car_documents') return saveOwnDoc_(me, id, row);
     if (table !== 'expenses' && table !== 'daily_logs') throw new Error('Not allowed');
+    if (id) return updateOwnEntry_(me, table, id, row);
     row.driver_id = me.id;
     delete row.waived; // only the admin can waive a fine
     if (table === 'expenses') {
@@ -803,6 +809,42 @@ function save_(me, table, input) {
 }
 
 /** Salary account rules, so the driver's balance is always right. */
+/** A driver adds / updates his own documents (Iqama, license…). He can never delete them. */
+function saveOwnDoc_(me, id, row) {
+  delete row.car_id;
+  row.driver_id = me.id;
+  if (id) {
+    var old = findBy_('car_documents', 'id', id);
+    if (!old || old.driver_id !== me.id || old.car_id || old.archived) throw new Error('Not allowed');
+    Object.keys(row).forEach(function (k) {
+      var filled = old[k] !== null && old[k] !== undefined && old[k] !== '';
+      if (row[k] === null && filled) row[k] = old[k]; // update only: filled fields are never cleared
+    });
+    var merged = merge_(old, row);
+    checkRequired_('car_documents', merged);
+    return updateRow_('car_documents', id, decorate_(merged));
+  }
+  checkRequired_('car_documents', row);
+  return insertRow_('car_documents', decorate_(row));
+}
+
+/** A driver changes his own entry while it is still open: an expense waiting for approval, or today's daily report. */
+function updateOwnEntry_(me, table, id, row) {
+  var old = findBy_(table, 'id', id);
+  if (!old || old.driver_id !== me.id || old.archived) throw new Error('Not allowed');
+  if (table === 'expenses' && old.status !== 'pending') throw new Error('This expense is already checked by the admin — ask the admin to change it');
+  if (table === 'daily_logs' && old.log_date !== today_()) throw new Error('Only today\'s report can be changed');
+  delete row.driver_id;
+  delete row.status;
+  delete row.waived;
+  var merged = merge_(old, row);
+  checkRequired_(table, merged);
+  if (merged.car_id !== old.car_id && !drivesNow_(me, merged.car_id)) throw new Error('You are not assigned to this car today');
+  var saved = updateRow_(table, id, decorate_(merged));
+  bumpOdometer_(table, saved);
+  return saved;
+}
+
 function checkCash_(row) {
   if (!(Number(row.amount) > 0)) throw new Error('Amount must be more than 0');
   var drv = findBy_('users', 'id', row.driver_id);
@@ -878,10 +920,7 @@ function remove_(me, table, id) {
       throw new Error('Only someone who can approve may delete an approved or rejected expense');
     }
   } else if (!isAdmin_(me)) {
-    var own = row.driver_id === me.id;
-    var okExpense = table === 'expenses' && own && row.status === 'pending';
-    var okLog = table === 'daily_logs' && own && row.log_date === today_();
-    if (!okExpense && !okLog) throw new Error('Not allowed');
+    throw new Error('You cannot delete. You can change (update) your entry instead.');
   }
   return updateRow_(table, id, merge_(row, { archived: true, archived_at: new Date().toISOString(), archived_by: me.id }));
 }
@@ -915,8 +954,18 @@ function saveUser_(me, input) {
   if ('permissions' in row) row.permissions = permsText_(row.permissions);
 
   if (!isAdmin_(me) && isSelf) {
-    // Drivers and managers may only update their own phone number
-    row = { phone: row.phone };
+    // Everyone fills in their own profile: update only, nothing can be removed
+    var mine = findBy_('users', 'id', me.id);
+    var own = {};
+    SELF_FIELDS.forEach(function (k) {
+      if (!(k in row)) return;
+      var filled = mine[k] !== null && mine[k] !== undefined && mine[k] !== '';
+      if (row[k] === null && filled) throw new Error(k.replace(/_/g, ' ') + ' cannot be removed — you can only change it');
+      own[k] = row[k];
+    });
+    if (own.iban) own.iban = String(own.iban).replace(/\s+/g, '').toUpperCase();
+    own.profile_updated_at = new Date().toISOString();
+    row = own;
   } else if (helper) {
     // Managers create / edit driver logins only, never admins or managers
     if (id) {
@@ -1051,14 +1100,16 @@ function fileRow_(me, table, id, forWrite) {
     }
     return row;
   }
+  if (forWrite === 'remove') throw new Error('Files cannot be removed — upload a new one to replace it');
   if (table === 'car_documents') {
-    if (forWrite) throw new Error('Only an admin can change document files');
+    var ownDoc = row.driver_id === me.id && !row.car_id && !row.archived;
+    if (forWrite && !ownDoc) throw new Error('Only an admin can change this document');
     if (!canSeeDoc_(me, row)) throw new Error('Not allowed');
     return row;
   }
-  // expenses: the driver who entered it can attach / view the receipt
+  // expenses: the driver who entered it can attach / replace / view the receipt
   if (row.driver_id !== me.id || row.archived) throw new Error('Not allowed');
-  if (forWrite === 'remove' && row.status !== 'pending') throw new Error('Only the admin can change the receipt after approval');
+  if (forWrite && row.status !== 'pending') throw new Error('Only the admin can change the receipt after approval');
   return row;
 }
 

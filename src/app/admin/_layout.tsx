@@ -137,6 +137,7 @@ export default function AdminLayout() {
         name="partner/[id]"
         options={{ ...hidden, title: 'Partner', headerLeft: () => <BackButton fallback="/admin/partners" /> }}
       />
+      <Drawer.Screen name="profile" options={{ title: 'My profile', drawerLabel: 'My profile', drawerIcon: icon('person-circle') }} />
       <Drawer.Screen name="settings" options={{ ...show(perm.admin), title: 'Settings', drawerLabel: 'Settings', drawerIcon: icon('settings') }} />
       <Drawer.Screen
         name="driver/[id]"

@@ -19,13 +19,15 @@ r=call({action:'data',token:D});ok(r.ok&&r.data.cars.length===1&&r.data.incomes.
 r=call({action:'save',token:D,table:'expenses',row:{car_id:car,category:'fine',amount:300,expense_date:'2026-10-02',status:'approved',driver_id:'someone',odometer:12000}});ok(r.ok&&r.data.status==='pending'&&r.data.driver_id===drv,'driver expense forced pending/own');const exp=r.data.id;
 r=call({action:'save',token:D,table:'expenses',row:{car_id:car2,category:'fuel',amount:50,expense_date:'2026-10-02'}});ok(!r.ok,'driver other car blocked');
 r=call({action:'save',token:D,table:'incomes',row:{car_id:car,amount:1,income_date:'2026-10-02',payment_status:'paid'}});ok(!r.ok,'driver income blocked');
-r=call({action:'save',token:D,table:'expenses',row:{id:exp,amount:1}});ok(!r.ok,'driver edit blocked');
+r=call({action:'save',token:D,table:'expenses',row:{id:exp,amount:310,status:'approved',driver_id:'x'}});ok(r.ok&&r.data.amount===310&&r.data.status==='pending'&&r.data.driver_id===drv,'driver updates own pending expense (status/driver locked)');
+r=call({action:'remove',token:D,table:'expenses',id:exp});ok(!r.ok&&/cannot delete/.test(r.error),'driver cannot delete');
 r=call({action:'saveUser',token:D,user:{id:drv,role:'admin',phone:'0999'}});ok(r.ok&&r.data.role==='driver'&&r.data.phone==='0999','driver no escalation');
 r=call({action:'saveUser',token:D,user:{username:'x',full_name:'x',password:'123456'}});ok(!r.ok,'driver cannot create user');
 r=call({action:'save',token:D,table:'daily_logs',row:{car_id:car,log_date:'2026-10-02',start_odometer:12000,end_odometer:12500,work_details:'trips'}});ok(r.ok,'driver log');
 r=call({action:'data',token:A});ok(r.data.cars.find(c=>c.id===car).current_odometer===12500,'odometer bumped');
 ok(r.data.profiles.every(p=>!p.password_hash&&!p.salt),'no hashes in admin data');
-r=call({action:'save',token:A,table:'expenses',row:{id:exp,status:'approved'}});ok(r.ok&&r.data.status==='approved'&&r.data.amount===300,'admin approves');
+r=call({action:'save',token:A,table:'expenses',row:{id:exp,status:'approved'}});ok(r.ok&&r.data.status==='approved'&&r.data.amount===310,'admin approves');
+r=call({action:'save',token:D,table:'expenses',row:{id:exp,amount:1}});ok(!r.ok&&/already checked/.test(r.error),'driver cannot change approved expense');
 r=call({action:'remove',token:A,table:'cars',id:car2});ok(r.ok&&r.data.archived===true,'delete = archive (car hidden, not erased)');
 ok(sheets['Cars'].data.some(x=>x[1]==='XYZ 2'),'archived car still in the sheet');
 r=call({action:'save',token:A,table:'cars',row:{plate_no:'XYZ 2',status:'active'}});ok(r.ok,'plate of archived car can be reused');const car3=r.data.id;
@@ -121,7 +123,8 @@ r=call({action:'removeFile',token:R4,table:'expenses',id:ex});ok(!r.ok,'driver c
 r=call({action:'uploadFile',token:R4,table:'cars',id:car,name:'x',base64:img});ok(!r.ok,'files only on documents and expenses');
 // driver deletes own pending expense = archived, admin still sees it
 const p2=call({action:'save',token:R4,table:'expenses',row:{car_id:car,category:'wash',amount:20,expense_date:'2026-10-21',paid_by:'driver'}}).data.id;
-r=call({action:'remove',token:R4,table:'expenses',id:p2});ok(r.ok,'driver removes own pending expense');
+r=call({action:'remove',token:R4,table:'expenses',id:p2});ok(!r.ok,'driver cannot delete own pending expense');
+r=call({action:'remove',token:A4,table:'expenses',id:p2});ok(r.ok,'admin archives it');
 ok(call({action:'data',token:A4}).data.expenses.find(x=>x.id===p2).archived===true,'admin can still see it in the archive');
 ok(!call({action:'data',token:R4}).data.expenses.some(x=>x.id===p2),'driver does not see archived expense');
 }
@@ -236,6 +239,29 @@ ctx._fetch=()=>({getResponseCode:()=>401,getContentText:()=>JSON.stringify({erro
 r=call({action:'sendReportNow',token:A7});ok(!r.ok&&/Invalid OAuth/.test(r.error),'WhatsApp error shown');
 ctx._fetch=null;
 ok(ctx.saveWaSettings_({enabled:false,to:'0551112222;00971501234567'}).to==='966551112222,971501234567','local 05… and 00… numbers fixed');
+}
+
+// --- self profile (update only) and own documents
+{
+const A8=call({action:'login',username:'admin',password:'123456'}).data.token;
+const R8=call({action:'login',username:'rahim',password:'driver1'}).data.token;
+const rah=call({action:'data',token:A8}).data.profiles.find(p=>p.username==='rahim');
+r=call({action:'saveUser',token:R8,user:{id:rah.id,full_name:'Rahim Uddin',address:'Dammam',iban:'sa03 8000 0000 6080 1016 7519',emergency_phone:'0550000000',date_of_birth:'1990-05-01',role:'admin',monthly_salary:99999,username:'hacker',active:false}});
+ok(r.ok&&r.data.full_name==='Rahim Uddin'&&r.data.iban==='SA0380000000608010167519'&&r.data.role==='driver'&&r.data.username==='rahim'&&r.data.active!==false&&r.data.monthly_salary!==99999&&r.data.profile_updated_at,'driver fills own profile; protected fields ignored');
+r=call({action:'saveUser',token:R8,user:{id:rah.id,address:null}});ok(!r.ok&&/cannot be removed/.test(r.error),'cannot clear a filled field');
+r=call({action:'saveUser',token:R8,user:{id:rah.id,address:'Khobar'}});ok(r.ok&&r.data.address==='Khobar','can change a field');
+const P8=call({action:'login',username:'partner1',password:'partner1'});const pid=P8.data.user.id;
+r=call({action:'saveUser',token:P8.data.token,user:{id:pid,phone:'0551231234',bank_name:'Al Rajhi'}});ok(r.ok&&r.data.bank_name==='Al Rajhi','partner fills own profile');
+r=call({action:'saveUser',token:P8.data.token,user:{id:rah.id,phone:'1'}});ok(!r.ok,'cannot edit someone else');
+r=call({action:'save',token:R8,table:'car_documents',row:{doc_type:'Iqama',doc_number:'2123',expiry_date:'2027-01-01',car_id:'x'}});ok(r.ok&&r.data.driver_id===rah.id&&!r.data.car_id,'driver adds own document');const dd=r.data.id;
+r=call({action:'save',token:R8,table:'car_documents',row:{id:dd,expiry_date:'2028-01-01',doc_number:null}});ok(r.ok&&r.data.expiry_date==='2028-01-01'&&r.data.doc_number==='2123','driver updates own document, filled fields kept');
+const img=Buffer.from('iqama').toString('base64');
+r=call({action:'uploadFile',token:R8,table:'car_documents',id:dd,name:'iqama.jpg',mimeType:'image/jpeg',base64:img});ok(r.ok,'driver uploads own document file');
+r=call({action:'uploadFile',token:R8,table:'car_documents',id:dd,name:'iqama2.jpg',mimeType:'image/jpeg',base64:img});ok(r.ok&&r.data.file_name==='iqama2.jpg','driver replaces own document file');
+r=call({action:'removeFile',token:R8,table:'car_documents',id:dd});ok(!r.ok,'driver cannot remove file');
+r=call({action:'remove',token:R8,table:'car_documents',id:dd});ok(!r.ok,'driver cannot delete document');
+const carDoc=call({action:'data',token:A8}).data.docs.find(x=>x.car_id&&!x.archived);
+r=call({action:'save',token:R8,table:'car_documents',row:{id:carDoc.id,notes:'x'}});ok(!r.ok,'driver cannot edit car documents');
 }
 
 console.log(fails?fails+' FAILED':'ALL PASSED');

@@ -40,6 +40,14 @@ export interface Profile {
   housing_allowance?: number | null;
   transport_allowance?: number | null;
   other_allowance?: number | null;
+  date_of_birth?: string | null;
+  address?: string | null;
+  emergency_name?: string | null;
+  emergency_phone?: string | null;
+  bank_name?: string | null;
+  iban?: string | null;
+  /** last time the user changed his own profile */
+  profile_updated_at?: string | null;
   /** manager only, e.g. "cars:edit,expenses:view,approve" */
   permissions?: string | null;
 }

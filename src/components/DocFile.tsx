@@ -168,9 +168,9 @@ export function FileBar({
 }
 
 /** Document file bar (admin manages, others view). */
-export function DocFileBar({ doc, manage }: { doc: WithFile & { id: string }; manage?: boolean }) {
+export function DocFileBar({ doc, manage, noRemove }: { doc: WithFile & { id: string }; manage?: boolean; noRemove?: boolean }) {
   const synced = isSynced(doc.id);
-  return <FileBar table="car_documents" row={doc} canUpload={manage} canRemove={manage && synced} />;
+  return <FileBar table="car_documents" row={doc} canUpload={manage} canRemove={manage && synced && !noRemove} />;
 }
 
 /** In-app preview: images everywhere, PDFs on web. */

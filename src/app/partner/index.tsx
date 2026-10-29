@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { Greeting } from '@/components/Greeting';
+import { MyProfile } from '@/components/MyProfile';
 import { PartnerWallet } from '@/components/PartnerWallet';
 import { Button, C, Card, ErrorBox, F, Loading, Screen } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -27,6 +28,8 @@ export default function PartnerHome() {
           share %. Money paid to you is taken from the wallet; anything not paid yet stays and is added to the next month.
         </Text>
       </Card>
+      <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 18, marginVertical: 10 }}>My profile</Text>
+      {me ? <MyProfile me={me} reload={reload} password /> : null}
       <View style={{ height: 4 }} />
       <Button
         title="Sign out"

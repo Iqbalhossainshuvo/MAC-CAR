@@ -148,6 +148,7 @@ export function LogRow({
   cars,
   people,
   onDelete,
+  onEdit,
   showCar = true,
   showDriver = true,
 }: {
@@ -155,6 +156,7 @@ export function LogRow({
   cars: Lookup<Car>;
   people: Lookup<Profile>;
   onDelete?: () => void;
+  onEdit?: () => void;
   showCar?: boolean;
   showDriver?: boolean;
 }) {
@@ -183,7 +185,14 @@ export function LogRow({
           ) : null}
         </View>
       }
-      right={onDelete ? <IconBtn icon="trash-outline" color={C.red} label="Delete" onPress={onDelete} /> : undefined}
+      right={
+        onEdit || onDelete ? (
+          <Row style={{ gap: 6 }}>
+            {onEdit ? <IconBtn icon="create-outline" label="Edit report" onPress={onEdit} /> : null}
+            {onDelete ? <IconBtn icon="trash-outline" color={C.red} label="Delete" onPress={onDelete} /> : null}
+          </Row>
+        ) : undefined
+      }
     />
   );
 }
@@ -193,6 +202,7 @@ export function DocRow({
   onEdit,
   onDelete,
   manageFile,
+  uploadOnly,
   showFile = true,
 }: {
   d: CarDocument;
@@ -200,6 +210,8 @@ export function DocRow({
   onDelete?: () => void;
   /** admin: may upload / replace / remove the attached file */
   manageFile?: boolean;
+  /** user's own document: may upload / replace the file, never remove it */
+  uploadOnly?: boolean;
   showFile?: boolean;
 }) {
   const lvl = expiryLevel(d.expiry_date);
@@ -211,7 +223,7 @@ export function DocRow({
         <View style={{ gap: 4, marginTop: 3 }}>
           {d.doc_number ? <Text style={{ color: C.muted, fontSize: 12 }}>No. {d.doc_number}</Text> : null}
           <ExpiryBadge date={d.expiry_date} />
-          {showFile ? <DocFileBar doc={d} manage={manageFile} /> : null}
+          {showFile ? <DocFileBar doc={d} manage={manageFile || uploadOnly} noRemove={uploadOnly} /> : null}
         </View>
       }
       right={
