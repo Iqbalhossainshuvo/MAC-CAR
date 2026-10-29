@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -244,12 +246,48 @@ export function Divider() {
 
 // ---------------------------------------------------------------- feedback
 
-export function Loading({ text = 'Syncing with Google Sheets…' }: { text?: string }) {
+const LOADING_STEPS = ['Getting your fleet ready…', 'Loading cars & drivers…', 'Checking today’s reports…', 'Adding up the accounts…', 'Almost there…'];
+
+/** Branded loading screen: pulsing MAC CAR logo, a moving bar and friendly steps. */
+export function Loading({ text }: { text?: string }) {
+  const [pulse] = useState(() => new Animated.Value(0));
+  const [slide] = useState(() => new Animated.Value(0));
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const native = Platform.OS !== 'web';
+    const a = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: native }),
+        Animated.timing(pulse, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: native }),
+      ]),
+    );
+    const b = Animated.loop(Animated.timing(slide, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.cubic), useNativeDriver: native }));
+    a.start();
+    b.start();
+    const t = setInterval(() => setStep((x) => (x + 1) % LOADING_STEPS.length), 1400);
+    return () => {
+      a.stop();
+      b.stop();
+      clearInterval(t);
+    };
+  }, [pulse, slide]);
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const x = slide.interpolate({ inputRange: [0, 1], outputRange: [-70, 170] });
+
   return (
     <Page>
-      <View style={{ padding: 40, alignItems: 'center', gap: 12 }}>
-        <ActivityIndicator color={C.primary} size="large" />
-        <Muted>{text}</Muted>
+      <View style={{ flex: 1, minHeight: 420, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 18 }} accessibilityRole="progressbar" accessibilityLabel="Loading">
+        <Animated.View style={[{ width: 84, height: 84, borderRadius: 26, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', transform: [{ scale }] }, glow(C.primary, 28, 0.45)]}>
+          <LinearGradient colors={GRAD as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <Ionicons name="car-sport" size={42} color="#fff" />
+        </Animated.View>
+        <Text style={{ fontFamily: F.display, color: C.text, fontSize: 22, letterSpacing: 0.5 }}>MAC CAR</Text>
+        <View style={{ width: 170, height: 6, borderRadius: 3, backgroundColor: hexA(C.primary, 0.12), overflow: 'hidden' }}>
+          <Animated.View style={{ width: 70, height: 6, borderRadius: 3, backgroundColor: C.primary, transform: [{ translateX: x }] }} />
+        </View>
+        <Muted>{text ?? LOADING_STEPS[step]}</Muted>
       </View>
     </Page>
   );

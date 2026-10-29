@@ -149,7 +149,7 @@ export function resetPassword(open: Open, p: Profile) {
 }
 
 export async function deleteRow(table: Table, id: string, what: string, reload: Reload) {
-  if (!(await confirm(`Delete ${what}?`, 'It will be hidden everywhere and moved to the Archive. It stays in your Google Sheet and can be restored.'))) return;
+  if (!(await confirm(`Delete ${what}?`, 'It will be hidden everywhere and moved to the Archive. It stays saved and can be restored.'))) return;
   if (await removeRow(table, id)) await reload();
 }
 

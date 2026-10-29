@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 /** Sends each user to the right place. */
 export default function Index() {
   const { loading, user } = useAuth();
-  if (loading) return <Loading text="Starting MAC CAR…" />;
+  if (loading) return <Loading />;
   if (!user) return <Redirect href="/login" />;
   if (user.role === 'partner') return <Redirect href="/partner" />;
   return <Redirect href={user.role === 'admin' || user.role === 'manager' ? '/admin' : '/driver'} />;

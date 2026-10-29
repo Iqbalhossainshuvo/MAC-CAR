@@ -61,8 +61,8 @@ export default function Archive() {
       <Card>
         <Text style={{ color: C.text, fontFamily: F.bold, fontSize: 16 }}>Nothing is ever deleted</Text>
         <Text style={{ color: C.muted, fontFamily: F.regular, marginTop: 4, lineHeight: 20 }}>
-          When you delete something it moves here. It is hidden everywhere in the app and not counted in totals, but it stays in your
-          Google Sheet. Tap Restore to bring it back.
+          When you delete something it moves here. It is hidden everywhere in the app and not counted in totals, but it stays saved in
+          the database. Tap Restore to bring it back.
         </Text>
       </Card>
       <Chips<Kind>

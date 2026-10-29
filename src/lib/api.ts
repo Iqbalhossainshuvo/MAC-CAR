@@ -73,7 +73,7 @@ export async function api<T = any>(action: string, payload: Record<string, unkno
       redirect: 'follow',
     });
   } catch {
-    throw new ApiError('No internet connection, or the Google Sheets server could not be reached.', true);
+    throw new ApiError('No internet connection, or the MAC CAR server could not be reached.', true);
   }
   const text = await res.text();
   let body: { ok: boolean; data?: T; error?: string };
